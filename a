@@ -1,0 +1,69 @@
+- Plain T-r--r--  1 alarm alarm  1313929 Apr  5 10:00  fanboy-annoyance.txt.1
+-rw-r--r--  1 alarm alarm   427855 Apr  5 10:00  fanboy-cookiemonster.txt
+-rw-r--r--  1 alarm alarm   427855 Apr  5 10:00  fanboy-cookiemonster.txt.1
+-rw-r--r--  1 alarm alarm   515064 Apr  5 07:44  fanboy-social.txt
+-rw-r--r--  1 alarm alarm   515064 Apr  5 07:44  fanboy-social.txt.1
+ Apr  3 16:1
+0  hostsback
+up
+-r
+wx
+r-xr-x  1 alarm alarm       88 Apr  3 23:33  micro-xterm.sh
+-rwsr-xr-x  1 root  root       128 Apr 14 09:24  mountnetwork.sh
+-rw-r--r--  1 alarm alarm     1444 Apr  4 00:01  mycolorscheme
+-rw-r--r--  1 alarm alarm   253260 Apr 13 14:40  newblocklist
+-rw-------  1 alarm alarm        0 Apr  3 19:29  nohup.out
+drwxr-xr-x  3 alarm alarm     4096 Mar 20 09:57  packages
+-rwxr-xr-x  1 alarm alarm      134 Mar 22 14:43  patch.sh
+-rw-r--r--  1 alarm alarm      126 Dec  4  2019  quake.txt
+-rwxr-xr-x  1 alarm alarm    12296 Apr 14 10:16  t.txt
+-rwxr-xr-x  1 alarm alarm    11828 Mar 20 11:08  t.txt~
+-rwxr-xr-x  1 alarm aarm      271 Apr  5 10:08  wget-easylist.sh
+-rw-r--r--  1 alarm alarm     1330 Apr  3 22:16  xinitrc.example
+top - 16:07:59 up  7:23,  1 user,  load average: 0.96, 0.82, 0.77
+Tasks: 175 total,   3 running, 172 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  5.2 us,  1.6 sy,  0.0 ni, 92.9 id,  0.0 wa,  0.0 hi,  0.2 si,  0.0 st
+MiB Mem :    962.2 total,    256.8 free,    279.6 used,    425.9 buff/cache
+MiB Swap:    800.7 total,    800.7 free,      0.0 used.    661.3 avail Mem
+
+  PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+  688 alarm     20   0  385416 170708  63424 S   0.0  17.3   6:08.26 netsurf-g+
+  493 alarm     20   0  193748  59820  41320 S   4.0   6.1   7:17.96 Xorg
+ 1784 alarm     20   0  497788  53624  24816 S   7.9   5.4   2:42.12 mpv
+ 1078 polkitd   20   0  237592  18400  15164 S   0.0   1.9   0:00.32 polkitd
+  231 root      20   0   46380  17308  16508 S   0.0   1.8   0:01.20 systemd-j+
+ 1880 alarm     20   0  889128  16664   8816 S   0.0   1.7   0:10.92 micro
+  295 systemd+  20   0   16868   9808   7868 S   0.0   1.0   0:00.74 systemd-r+
+ 1879 alarm     20   0   18436   9668   7944 S   0.0   1.0   0:01.36 xterm
+ 1074 alarm      9 -11  355204   9280   7208 S   5.3   0.9   8:25.28 pulseaudio
+  726 alarm     20   0   15708   8916   6984 S   0.0   0.9   0:20.97 st
+  715 alarm     20   0   15144   8624   6828 S   0.0   0.9   0:14.40 st
+ 1197 alarm     20   0   14924   8504   6840 S   0.3   0.9   0:00.86 st
+    1 root      20   0   33708   8464   6840 S   0.0   0.9   0:10.32 systemd
+  513 alarm     20   0   15276   8272   6576 R   0.0   0.8
+-rw-r--r--  1 alarm alarm  1313929 Apr  5 10:00  fanboy-annoyance.txt
+-rw-r--r--  1 alarm alarm  1313929 Apr  5 10:00  fanboy-annoyance.txt.1
+-rw-r--r--  1 alarm alarm   427855 Apr  5 10:00  fanboy-cookiemonster.txt
+-rw-r--r--  1 alarm alarm   427855 Apr  5 10:00  fanboy-cookiemonster.txt.1
+-rw-r--r--  1 alarm alarm   515064 Apr  5 07:44  fanboy-social.txt
+-rw-r--r--  1 alarm alarm   515064 Apr  5 07:44  fanboy-social.txt.1
+-rw-r--r--  1 alarm alarm       67 Apr  3 16:10  hostsbackup
+-rwxr-xr-x  1 alarm alarm       88 Apr  3 23:33  micro-xterm.sh
+-rwsr-xr-x  1 root  root       128 Apr 14 09:24  mountnetwork.sh
+-rw-r--r--  1 alarm alarm     1444 Apr  4 00:01  mycolorscheme
+-rw-r--r--  1 alarm alarm   253260 Apr 13 14:40  newblocklist
+-rw-------  1 alarm alarm        0 Apr  3 19:29  nohup.out
+drwxr-xr-x  3 alarm alarm     4096 Mar 20 09:57  packages
+-rwxr-xr-x  1 alarm alarm      134 Mar 22 14:43  patch.sh
+-rw-r--r--  1 alarm alarm      126 Dec  4  2019  quake.txt
+-rwxr-xr-x  1 alarm alarm    12296 Apr 14 10:16  t.txt
+-rwxr-xr-x  1 alarm alarm    11828 Mar 20 11:08  t.txt~
+-rwxr-xr-x  1 alarm alarm      271 Apr  5 10:08  wget-easylist.sh
+-rw-r--r--  1 alarm alarm     1330 Apr  3 22:16  xinitrc.example
+[alarm@alarmpi ~]$ ls -la | less
+[alarm@alarmpi ~]$ killall kilo
+[alarm@alarmpi ~]$
+
+asdasdkjhfjksadhjhsajsadhjsdafhjk
+zczxzczc
+hgfghfhgfjkyoibui
