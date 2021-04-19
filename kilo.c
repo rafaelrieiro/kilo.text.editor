@@ -121,8 +121,8 @@ int  getWindowSize(int *rows, int *cols);
 int  editorReadKey();
 
 /// input
-void editorProcessKey();
-char *editorPrompt(char *prompt);
+void   editorProcessKey();
+char * editorPrompt(char *prompt,void(*callback)(const char* input,const int key));
 
 /// error handling
 void die(const char *s);
@@ -148,11 +148,13 @@ char *editorRowsToString(int *buflen);
 void editorSave();
 
 // row operations
+
 void editorAppendRow(char *s, size_t len,int pos);
 void editorUpdateRow(erow *row);
 int  editorRowCxToRx(erow *row,int cx);
 
 // row operations
+
 void editorRowInsertChar(erow *row,int at,int c);
 void editorRowDelChar(erow *row,int at);
 void editorRowShift(int pos, int size);
@@ -161,9 +163,13 @@ void editorRowShiftUp(int lines);
 void editorRowDel(int pos);
 void editorRowCut(erow *row,int newsize);
 void editorRowMerge(erow *row,char *s,int len);
+
 // editor operations
+
 void editorInsertChar(int c);
 void editorRowInsert();
+void editorFind();
+void editorFindCallBack(const char *input,const int key);
 
 //  memory management
 void freeBuffers();
@@ -453,6 +459,9 @@ void editorProcessKey()
     case CTRL_KEY('s'):
       editorSave();
     break;
+    case CTRL_KEY('f'):
+      editorFind();
+    break;
 	
 	case ARROW_LEFT:
 	case ARROW_UP:
@@ -501,7 +510,7 @@ void editorProcessKey()
     quit_times = KILO_QUIT_TIMES;
 }
 
-char *editorPrompt(char *prompt)
+char *editorPrompt(char *prompt,void(*callback)(const char *input, const int key))
 {
    size_t bufsize = 128;
 
@@ -524,6 +533,7 @@ char *editorPrompt(char *prompt)
 
        case RETURN:
          editorSetStatusMessage("");
+         if ( callback != NULL ) callback(buf,c); 
          return buf;
        break;
        case ESCAPE:
@@ -797,7 +807,7 @@ char *editorRowsToString(int *buflen)
 void editorSave()
 {
     if ( E.filename  == NULL )  
-      E.filename = editorPrompt("Save as:");
+      E.filename = editorPrompt("Save as:",NULL);
 
     if ( E.filename == NULL ) {
 
@@ -806,7 +816,6 @@ void editorSave()
     	
     }
     
-
     int len;
     int fd;
     char *buf=editorRowsToString(&len);
@@ -1004,11 +1013,89 @@ void editorInsertChar(int c)
 
 void editorRowInsert()
 {
-  editorAppendRow(&E.row[E.cy].chars[E.cx],strlen(&E.row[E.cy].chars[E.cx]),E.cy + 1);
-  if ( E.cx < E.row[E.cy].size  ) editorRowCut(&E.row[E.cy],E.cx);
-  editorUpdateRow(&E.row[E.cy]);
-  E.dirty++;
+    editorAppendRow(&E.row[E.cy].chars[E.cx],strlen(&E.row[E.cy].chars[E.cx]),E.cy + 1);
+    if ( E.cx < E.row[E.cy].size  ) editorRowCut(&E.row[E.cy],E.cx);
+    editorUpdateRow(&E.row[E.cy]);
+    E.dirty++;
 }
+
+void editorFind()
+{
+    char *promptstr = editorPrompt("Find:",editorFindCallBack);
+    editorSetStatusMessage("");
+    free(promptstr);
+}
+
+void editorFindCallBack(const char *input,const int key)
+{
+
+    int c;
+    int j = E.cy;
+    char *pos = NULL;
+    int count = 0;
+    size_t forward = 1;
+ 
+    int oldCx = E.cx;
+    int oldCy = E.cy;
+    int oldRowOff = E.rowoff;
+    int oldColOff = E.coloff;
+    
+    do {
+
+      pos = strstr(E.row[j].chars,input);
+
+      if ( pos != NULL) {
+
+        E.cy = j;
+        E.cx = pos - E.row[j].chars;
+        E.rowoff = E.cy;
+        E.coloff = E.cx;
+        editorScroll();
+        editorSetStatusMessage("Arrows to Search Again: %s, Esc to quit",input);
+        editorRefreshScreen(); 
+        pos = NULL;
+        count = 0;
+        
+        c = editorReadKey();
+
+        switch (c){
+
+        case CTRL_KEY('q'):
+        case ESCAPE:
+          E.cx = oldCx;
+          E.cy = oldCy;
+          E.rowoff = oldRowOff;
+          E.coloff = oldColOff;
+          return;
+        break;
+        case PAGE_UP:
+        case ARROW_UP:
+          forward = 0;
+        break;
+        case ARROW_DOWN:
+        default:
+          forward = 1;
+        break;
+               	
+        }
+                      	
+      }  
+          
+      j += ( forward ? 1 : -1 );
+      count++;
+
+      if ( count > E.numrows ) {
+       editorSetStatusMessage("String Not Found");
+       return;
+     } 
+    
+     if ( ( j == E.numrows ) && forward )   j = 0;
+     if ( ( j == -1 && forward == 0 ))      j = E.numrows - 1;                                 
+               
+     } while (1); 
+
+}
+
 /*******************   memory management  **************/
 
 void freeBuffers()
