@@ -634,7 +634,9 @@ void editorDrawRows(struct abuf* ab)
             int len = E.row[filerow].rsize - E.coloff;
             if ( len < 0 ) len = 0;
             if ( len > E.screencols ) len = E.screencols;
+                 
             abAppend(ab,&E.row[filerow].render[E.coloff],len); 
+
         	
           }
 	  
