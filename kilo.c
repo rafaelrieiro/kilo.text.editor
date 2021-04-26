@@ -50,6 +50,36 @@
 
 #define KILO_QUIT_TIMES 3
 
+/**************  Highlight ***********************/
+
+#define ESEQ_SET_FG_COLOR(str,color) (sprintf(str,"\x1b[38;5;%dm",color))
+#define ESEQ_SET_BG_COLOR(str,color) (sprintf(str,"\x1b[48;5;%dm",color))
+#define ESEQ_SET_FONT_BOLD(str)      (sprintf(str,"\x1b[1m"))
+#define ESEQ_SET_FONT_ITALIC(str)    (sprintf(str,"\x1b[3m"))
+#define ESEQ_SET_FONT_UNDERLINE(str) (sprintf(str,"\x1b[4m"))
+#define ESEQ_SET_RESET(str)          (sprintf(str,"\x1b[0m"))
+
+
+#define GET_FG_COLOR(x)         ( x & 0xff )
+#define GET_BG_COLOR(x)         ( ( x & 0xff00 ) >> 8 )
+#define GET_HL_CHANGE(x)        ( x & 0x80000000 )
+#define GET_HL_RESET(x)         ( x & 0x40000000 )
+#define GET_FT_BOLD(x)          ( x & 0x10000 )
+#define GET_FT_ITALIC(x)        ( x & 0x20000 )
+#define GET_FT_UNDERLINE(x)     ( x & 0x40000 )
+
+#define SET_FG_COLOR(x,color)         ( x |= (  color )  )
+#define SET_BG_COLOR(x,color)         ( x |= (  color << 8  )  )
+#define SET_HL_CHANGEON(x)      ( x  = ( x & 0x0 ) | 0x80000000  )
+#define SET_HL_CHANGEOFF(x)     ( x  = ( x & 0x0 ) )
+#define SET_HL_RESET(x)         ( x |= 0x40000000 )
+#define SET_FT_BOLD(x)          ( x |= 0x10000 )
+#define SET_FT_ITALIC(x)        ( x |= 0x20000 )
+#define SET_FT_UNDERLINE(x)     ( x |= 0x40000 )
+
+#define MAX_BF_ESEQ_SIZE        40  
+ 
+
 /*************** libraries  ***************/
 
 #include <stdio.h>
@@ -74,6 +104,7 @@ typedef struct {
     char *render;
     int  size;
     char *chars;
+    __int32_t* hl; 
 
 } erow;
 
@@ -87,6 +118,7 @@ typedef struct {
     int    mousex,mousey;
     erow   *row;
     char   *filename;
+    char   *filetype;
     char   statusmsg[80];
     time_t statusmsg_time; 
     int    dirty;
@@ -106,7 +138,7 @@ enum editorKey {
 
     BACKSPACE=127,
     ARROW_LEFT=1000,ARROW_RIGHT,ARROW_UP,ARROW_DOWN,
-    DEL_KEY,PAGE_UP,PAGE_DOWN,END_KEY,HOME_KEY,RETURN,ESCAPE,
+    DEL_KEY,PAGE_UP,PAGE_DOWN,END_KEY,HOME_KEY,RETURN,ESCAPE,TAB_KEY,
     MOUSE_SCROLL_DOWN,MOUSE_SCROLL_UP,MOUSE_LEFT_CLICK,MOUSE_RIGHT_CLICK,MOUSE_MIDDLE_CLICK
 };
 
@@ -150,8 +182,10 @@ void editorSave();
 // row operations
 
 void editorAppendRow(char *s, size_t len,int pos);
-void editorUpdateRow(erow *row);
+void editorUpdateRowRender(erow *row);
+void editorUpdateRowHighLight(erow *row);
 int  editorRowCxToRx(erow *row,int cx);
+int editorRowGetHighLight(erow *row,int pos,char *str);
 
 // row operations
 
@@ -249,6 +283,8 @@ int editorReadKey()
 
     if ( c == '\x7f')  return BACKSPACE;
     if ( c == '\x0d')  return RETURN;
+    if ( c == '\x09')  return TAB_KEY;
+    
 
     if ( c == '\x1b') {
 
@@ -502,8 +538,11 @@ void editorProcessKey()
       editorRowInsert();
       editorMoveCursor(ARROW_DOWN);
     break;
+    case TAB_KEY:
+      editorInsertChar('\t');
+    break;
 	default:
-	  editorInsertChar(c);
+	   if ( !iscntrl(c) && c < 127 ) editorInsertChar(c);
 	break;
     }
 
@@ -614,6 +653,7 @@ void abAppend(struct abuf *ab,const char* s,int len)
 
 void editorDrawRows(struct abuf* ab)
 {
+    char str[MAX_BF_ESEQ_SIZE];   
     int y;
     for ( y=0;y<E.screenrows;y++) {
 
@@ -642,21 +682,46 @@ void editorDrawRows(struct abuf* ab)
         } else {
 
             int len = E.row[filerow].rsize - E.coloff;
+            int j;
+            char c;
+            //char *hlstr;
+                        
             if ( len < 0 ) len = 0;
             if ( len > E.screencols ) len = E.screencols;
-                 
-            abAppend(ab,&E.row[filerow].render[E.coloff],len); 
 
+            
+            for ( j = 0 ; j < len ; j++) {
+           
+                        
+            if ( editorRowGetHighLight(&E.row[filerow],E.coloff + j,&str[0])  == 1 ) {
+                 
+              abAppend(ab,&str[0],strlen(str));
+              c = E.row[filerow].render[E.coloff + j];
+              abAppend(ab,&c,1);
+                            	
+            } else {
+
+              c = E.row[filerow].render[E.coloff + j];
+              abAppend(ab,&c,1);   
+              	
+              }
+               
+                          	
+            }  
+            
+           //abAppend(ab,&E.row[filerow].render[E.coloff],len);
         	
           }
 	  
-	abAppend(ab,"\x1b[K",3);	  // erase until end of line
-	abAppend(ab,"\r\n",2);
+	abAppend(ab,"\x1b[0m",5);     // reset all hightlight modes
+    abAppend(ab,"\x1b[K",3);	  // erase until end of line
+    abAppend(ab,"\r\n",2);
 		  
-	}		
+  }		
     
-   
-}
+  
+}  
+
 
 void editorRefreshScreen()
 {
@@ -706,8 +771,8 @@ void editorDrawStatusBar(struct abuf *ab)
     // inverted printed colors
     abAppend(ab,"\x1b[7m",4);
     int rlen = 0;
-    len = snprintf(status,sizeof(status),"%.30s (%d,%d)",(E.filename?E.filename:"[No name]"),
-    E.cy + 1,E.cx +1);
+    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s",(E.filename?E.filename:"[No name]"),
+    E.cy + 1,E.cx +1,(E.filetype?E.filetype:""));
 
     if ( len > E.screencols ) len = E.screencols;
 
@@ -760,7 +825,13 @@ void editorOpen(char *filename)
 {
     free(E.filename);
     E.filename = strdup(filename);
-   
+
+    E.filetype = strrchr(filename,'.');
+    if ( *E.filetype != '\0' ) 
+      E.filetype++;
+    else
+      E.filetype=NULL;
+      
     FILE *fp = fopen(filename,"r");
 
     if (!fp) die("fopen");
@@ -857,13 +928,15 @@ void editorAppendRow(char *s, size_t len,int pos)
     E.row[pos].chars[len]='\0';
     E.row[pos].rsize = 0;
     E.row[pos].render = NULL; 
+    E.row[pos].hl = NULL;
            
-    editorUpdateRow(&E.row[pos]);
+    editorUpdateRowRender(&E.row[pos]);
+    editorUpdateRowHighLight(&E.row[pos]);
     
 	E.numrows++;
 }
 
-void editorUpdateRow(erow* row)
+void editorUpdateRowRender(erow* row)
 {
     int j;
     int tabs = 0;
@@ -876,11 +949,13 @@ void editorUpdateRow(erow* row)
     row->render = malloc(row->size + ( tabs * ( KILO_TAB_STOP - 1 )  + 1 ) );
 
     int idx = 0;
+
     for (j=0;j<row->size;j++){
 
       if ( row->chars[j] == '\t') {
 
         row->render[idx++] = ' ';	
+
         while ( idx % KILO_TAB_STOP != 0 ) {
           row->render[idx++] = ' ';	
         }  
@@ -892,7 +967,17 @@ void editorUpdateRow(erow* row)
 
     row->render[idx]='\0';
     row->rsize = idx;
-	
+    
+    // only makes a copy of chars to render    
+    /*
+    free(row->render);
+    row->render = malloc(row->size + 1);
+    for (j=0;j<row->size;j++){ 
+      row->render[j]=row->chars[j];
+    }
+    row->render[j]='\0';
+    row->rsize = row->size;
+    */
 }
 
 
@@ -911,6 +996,8 @@ int editorRowCxToRx(erow *row,int cx)
     return rx;
 }
 
+
+
 /**********************  row operations   ********************/
 
 void editorRowInsertChar(erow *row,int at,int c)
@@ -920,7 +1007,8 @@ void editorRowInsertChar(erow *row,int at,int c)
     memmove(&row->chars[at + 1],&row->chars[at],row->size + 1 - at );
     row->size++;
     row->chars[at] = c;
-    editorUpdateRow(row); 
+    editorUpdateRowRender(row);
+    editorUpdateRowHighLight(row); 
 }
 
 void editorRowDelChar(erow *row,int at)
@@ -934,7 +1022,8 @@ void editorRowDelChar(erow *row,int at)
         memmove(&row->chars[at],&row->chars[at + 1],row->size - at );    
         if ( ( row->chars = realloc(row->chars, row->size ) ) == NULL ) die("realloc");
         row->size--;
-        editorUpdateRow(row);  
+        editorUpdateRowRender(row);
+        editorUpdateRowHighLight(row);  
         E.dirty++; 
             	
       } else if ( at == row->size ) {
@@ -942,8 +1031,9 @@ void editorRowDelChar(erow *row,int at)
           if ( E.cy != ( E.numrows - 1 ) ) {
           	
             editorRowMerge(&E.row[E.cy],E.row[E.cy+1].chars,E.row[E.cy+1].size);  
+            editorUpdateRowRender(row);
+            editorUpdateRowHighLight(row);
             editorRowDel(E.cy+1);
-            editorUpdateRow(row);
             E.dirty++;      	
           } 
         }
@@ -1003,6 +1093,161 @@ void editorRowMerge(erow *row,char *s,int len)
     row->size += len;       
 }
 
+int editorRowGetHighLight(erow *row,int pos,char *str) 
+{
+    char temp[MAX_BF_ESEQ_SIZE];
+
+    strcpy(str,"\0");
+
+    if ( GET_HL_CHANGE(row->hl[pos]) ) { 
+             
+      if  ( !( GET_HL_RESET(row->hl[pos]) ) ) {
+
+
+        ESEQ_SET_BG_COLOR(temp,GET_BG_COLOR(row->hl[pos]));
+        strcat(str,temp);
+      
+        ESEQ_SET_FG_COLOR(temp,GET_FG_COLOR(row->hl[pos]));
+        strcat(str,temp);
+     
+        if ( GET_FT_BOLD(row->hl[pos]) ) {
+
+          ESEQ_SET_FONT_BOLD(temp);
+          strcat(str,temp);
+        }
+
+        if ( GET_FT_ITALIC(row->hl[pos]) ){
+
+          ESEQ_SET_FONT_ITALIC(temp);
+          strcat(str,temp);
+        }
+
+        if ( GET_FT_UNDERLINE(row->hl[pos]) ){
+      
+          ESEQ_SET_FONT_UNDERLINE(temp);
+          strcat(str,temp);
+        }
+            
+        return 1;
+      }
+
+      else {
+        ESEQ_SET_RESET(str); 
+      	return 1;
+      }
+    
+    } 
+    return 0;
+    //if (! ( GET_HL_CHANGE(row->hl[pos]) ) ) { ESEQ_SET_RESET(str); return 1;}
+    //return 0;
+}
+
+void editorUpdateRowHighLight(erow *row)
+{
+    int j;
+    char *last,*current;
+    int lastpos;
+        
+    row->hl = realloc( row->hl,row->rsize * sizeof(__int32_t));
+    
+    //if ( ( p = strstr(row->render,"/*") ) != NULL ) {
+      	
+    //}
+
+    for ( j = 0; j < row->rsize ; j++) {
+
+      //is any highlight applicable ? we only know in the end of all possibilities
+      // highlight precedence ? 
+      //numbers
+      if ( isdigit(row->render[j]) ) {
+        
+        SET_HL_CHANGEON(row->hl[j]);
+        SET_FG_COLOR(row->hl[j],3);
+        //SET_BG_COLOR(row->hl[j],15);
+        //SET_FT_UNDERLINE(row->hl[j]);
+        //SET_FT_BOLD(row->hl[j]);
+        SET_FT_ITALIC(row->hl[j]);
+       
+      } 
+      else if isupper(row->render[j]){ 
+        SET_HL_CHANGEON(row->hl[j]);
+        SET_FG_COLOR(row->hl[j],9);
+
+      } else {
+      
+      	SET_HL_CHANGEON(row->hl[j]);
+      	SET_HL_RESET(row->hl[j]);	
+      }
+
+       
+             
+      //delimiters
+
+      //keywords
+
+      //defines
+
+
+    }
+    //TODO
+    last = current = row->render;
+    lastpos = 0;
+      
+     while ( ( current = strstr(last,"auto") ) != NULL ){
+
+
+          int pos = lastpos + current - last;
+ 
+          SET_HL_CHANGEON(row->hl[pos]);
+          SET_FG_COLOR(row->hl[pos],10);
+          SET_HL_CHANGEON(row->hl[pos+1]);
+          SET_FG_COLOR(row->hl[pos+1],10);
+          SET_HL_CHANGEON(row->hl[pos+2]);
+          SET_FG_COLOR(row->hl[pos+2],10);
+          SET_HL_CHANGEON(row->hl[pos+3]);
+          SET_FG_COLOR(row->hl[pos+3],10);             
+          SET_HL_CHANGEON(row->hl[pos+4]); 
+          SET_HL_RESET(row->hl[pos + 4]);
+
+          current += 4;
+          lastpos = pos + 4;
+          
+          last = current;
+          
+                    
+      }   
+    
+     }   
+     /* 
+     p = row->render;
+     
+     while ( ( p = strstr(p,"int") ) != NULL ){
+
+          int pos = p - row->render;
+ 
+          SET_HL_CHANGEON(row->hl[pos]);
+          SET_FG_COLOR(row->hl[pos],9);
+          SET_HL_CHANGEON(row->hl[pos+1]);
+          SET_FG_COLOR(row->hl[pos+1],9);
+          SET_HL_CHANGEON(row->hl[pos+2]);
+          SET_FG_COLOR(row->hl[pos+2],9);
+          SET_HL_CHANGEON(row->hl[pos+3]); 
+          SET_HL_RESET(row->hl[pos + 3]);
+          if ( *p == '\0') 
+            break; 
+          else
+            p++;
+
+     }   
+     */
+     
+
+}
+
+   
+
+  
+
 /**********************  editor operations ******************/
 
 void editorInsertChar(int c)
@@ -1017,7 +1262,8 @@ void editorRowInsert()
 {
     editorAppendRow(&E.row[E.cy].chars[E.cx],strlen(&E.row[E.cy].chars[E.cx]),E.cy + 1);
     if ( E.cx < E.row[E.cy].size  ) editorRowCut(&E.row[E.cy],E.cx);
-    editorUpdateRow(&E.row[E.cy]);
+    editorUpdateRowRender(&E.row[E.cy]);
+    editorUpdateRowHighLight(&E.row[E.cy]);
     E.dirty++;
 }
 
@@ -1106,6 +1352,7 @@ void freeBuffers()
 
       free(E.row[E.numrows].chars);
       free(E.row[E.numrows].render);
+      free(E.row[E.numrows].hl);
     } 
 
 	free(E.row);
