@@ -33,13 +33,13 @@
 *  ISO C89, ISO C99, POSIX.1, POSIX.2, BSD, SVID, X/Open, LFS, and GNU extensions.
 *  In the cases where POSIX.1 conflicts with BSD, the POSIX definitions take precedence. 
 */
-#define _BSD_SOURCE
+#define _BSD_SOURCE    
 #define _DEFAULT_SOURCE
 /* If you define this macro, most features are included apart from X/Open, 
 *  LFS and GNU extensions: the effect is to enable features from the 2008 edition of POSIX,
 *  as well as certain BSD and SVID features without a separate feature test macro to control them. 
 */
-
+     
 #define CTRL_KEY(k) ( k & 0x1f )
 
 #define ABUF_INIT { NULL , 0 }
@@ -52,30 +52,47 @@
 
 /**************  Highlight ***********************/
 
-#define ESEQ_SET_FG_COLOR(str,color) (sprintf(str,"\x1b[38;5;%dm",color))
-#define ESEQ_SET_BG_COLOR(str,color) (sprintf(str,"\x1b[48;5;%dm",color))
-#define ESEQ_SET_FONT_BOLD(str)      (sprintf(str,"\x1b[1m"))
-#define ESEQ_SET_FONT_ITALIC(str)    (sprintf(str,"\x1b[3m"))
-#define ESEQ_SET_FONT_UNDERLINE(str) (sprintf(str,"\x1b[4m"))
-#define ESEQ_SET_RESET(str)          (sprintf(str,"\x1b[0m"))
+#define ESEQ_INVERT_COLOR     "\x1b[7m"
+#define ESEQ_RESET_MODE       "\x1b[m"
+#define ESEQ_CR_NL            "\r\n"
+#define ESEQ_CURSOR_HIDE      "\x1b[?251"
+#define ESEQ_CURSOR_SHOW      "\x1b[?25h" 
+#define ESEQ_CURSOR_GOHOME    "\x1b[H"
+
+
+#define ESEQ_SET_FG_COLOR(str,color)    (sprintf(str,"\x1b[38;5;%dm",color))
+#define ESEQ_SET_BG_COLOR(str,color)    (sprintf(str,"\x1b[48;5;%dm",color))
+#define ESEQ_SET_FONT_BOLD(str)         (sprintf(str,"\x1b[1m"))
+#define ESEQ_SET_FONT_NOT_BOLD(str)     (sprintf(str,"\x1b[22m"))
+#define ESEQ_SET_FONT_ITALIC(str)       (sprintf(str,"\x1b[3m"))
+#define ESEQ_SET_FONT_NOT_ITALIC(str)   (sprintf(str,"\x1b[23m"))
+#define ESEQ_SET_FONT_UNDERLINE(str)    (sprintf(str,"\x1b[4m"))
+#define ESEQ_SET_FONT_NOT_UNDERLINE(str)(sprintf(str,"\x1b[24m"))
+#define ESEQ_SET_FONT_REGULAR(str)      (sprintf(str,"\x1b[10m"))
+#define ESEQ_SET_RESET(str)             (sprintf(str,"\x1b[0m"))
 
 
 #define GET_FG_COLOR(x)         ( x & 0xff )
 #define GET_BG_COLOR(x)         ( ( x & 0xff00 ) >> 8 )
 #define GET_HL_CHANGE(x)        ( x & 0x80000000 )
 #define GET_HL_RESET(x)         ( x & 0x40000000 )
+#define GET_HL_ML_COMMENT(x)    ( x & 0x20000000 )
 #define GET_FT_BOLD(x)          ( x & 0x10000 )
 #define GET_FT_ITALIC(x)        ( x & 0x20000 )
 #define GET_FT_UNDERLINE(x)     ( x & 0x40000 )
+#define GET_FT_REGULAR(x)       ( x & 0x80000 ) 
 
-#define SET_FG_COLOR(x,color)         ( x |= (  color )  )
-#define SET_BG_COLOR(x,color)         ( x |= (  color << 8  )  )
+#define SET_FG_COLOR(x,color)   ( x |= (  color )  )
+#define SET_BG_COLOR(x,color)   ( x |= (  color << 8  )  )
 #define SET_HL_CHANGEON(x)      ( x  = ( x & 0x0 ) | 0x80000000  )
 #define SET_HL_CHANGEOFF(x)     ( x  = ( x & 0x0 ) )
 #define SET_HL_RESET(x)         ( x |= 0x40000000 )
+#define SET_HL_ML_COMMENT(x)    ( x |= 0x20000000 )
+//#define SET_HL_ML_COMMENTOFF(x) ( x ^= 0x20000000 )
 #define SET_FT_BOLD(x)          ( x |= 0x10000 )
 #define SET_FT_ITALIC(x)        ( x |= 0x20000 )
 #define SET_FT_UNDERLINE(x)     ( x |= 0x40000 )
+#define SET_FT_REGULAR(x)       ( x |= 0x80000 )
 
 #define MAX_BF_ESEQ_SIZE        40  
  
@@ -110,6 +127,38 @@ typedef struct {
 
 typedef struct {
 
+    size_t colorfg;
+    size_t colorbg;
+    char bold;
+    char italic;
+    char underline;
+    char regular;
+
+} fontStyle; 
+
+typedef struct {
+    
+  char **tokens;
+  fontStyle fstyle;
+	
+} hlType;
+
+typedef struct {
+
+  char name[20];
+
+  hlType var;
+  hlType keyword;
+  hlType preprocessor;
+  hlType number;
+  hlType operator;
+  hlType upper;
+  hlType str;
+  	
+} filetype;
+
+typedef struct {
+
     int    rx;
     int    cx,cy;
     int    screenrows,screencols;
@@ -122,6 +171,7 @@ typedef struct {
     char   statusmsg[80];
     time_t statusmsg_time; 
     int    dirty;
+    filetype ft;
     struct termios orig_termios;
 
 } editorConfig;
@@ -141,6 +191,10 @@ enum editorKey {
     DEL_KEY,PAGE_UP,PAGE_DOWN,END_KEY,HOME_KEY,RETURN,ESCAPE,TAB_KEY,
     MOUSE_SCROLL_DOWN,MOUSE_SCROLL_UP,MOUSE_LEFT_CLICK,MOUSE_RIGHT_CLICK,MOUSE_MIDDLE_CLICK
 };
+
+
+
+
 
 /*************** function prototypes *************/
 
@@ -178,14 +232,20 @@ void abAppend(struct abuf *ab,const char* s,int len);
 void editorOpen(char *filename);
 char *editorRowsToString(int *buflen);
 void editorSave();
+void editorLoadHLTemplate();
 
 // row operations
 
 void editorAppendRow(char *s, size_t len,int pos);
 void editorUpdateRowRender(erow *row);
-void editorUpdateRowHighLight(erow *row);
+void editorUpdateRowHL(erow *row);
+void editorUpdateRowHLTokens(erow *row,hlType *hl);
+void editorUpdateRowHLNumbers(erow *row,hlType *hl);
+void editorUpdateRowHLOps(erow *row,hlType *hl);
+void editorUpdateRowHLUpper(erow *row,hlType *hl);
+void editorUpdateRowHLApply(erow *row,hlType *hl,int pos, int size);
 int  editorRowCxToRx(erow *row,int cx);
-int editorRowGetHighLight(erow *row,int pos,char *str);
+int editorRowGetHL(erow *row,int pos,char *str);
 
 // row operations
 
@@ -406,10 +466,16 @@ void editorMoveCursor(int key)
     switch(key) {
 		
     case MOUSE_SCROLL_UP:
+      if ( E.rowoff > 0 ) E.rowoff--;
+      if ( E.cy > 0 ) E.cy--;
+    break;
 	case ARROW_UP:
 	  if ( E.cy > 0 ) E.cy--;
 	break;
     case MOUSE_SCROLL_DOWN:
+      if ( E.rowoff < ( E.numrows - E.screenrows)  ) E.rowoff++;
+      if ( E.cy < ( E.numrows - 1) ) E.cy++;
+    break;
 	case ARROW_DOWN:
 	  if ( E.cy < ( E.numrows - 1) ) E.cy++;
 	break;
@@ -469,7 +535,7 @@ void editorMoveCursor(int key)
     if ( E.cx > rowlen ) E.cx=rowlen;
 
 }
-
+   
 void editorProcessKey()
 {
     static int quit_times = KILO_QUIT_TIMES;
@@ -487,7 +553,7 @@ void editorProcessKey()
           	
       } else {
       
-	      write(STDOUT_FILENO,"\x1b[2J",4);  //clear screen
+          write(STDOUT_FILENO,"\x1b[2J",4);  //clear screen
           write(STDOUT_FILENO,"\x1b[H",3);   // put cursor at home
           exit(0);
         }
@@ -625,7 +691,16 @@ void initEditor()
   E.statusmsg_time = 0;
   if ( getWindowSize(&E.screenrows,&E.screencols) == -1 ) die("getWindowSize");
   E.screenrows -= 2; // one line for status bar and other for status messages - this is the cause of resize offset!!
- 
+
+  E.ft.operator.tokens = NULL;
+  E.ft.str.tokens = NULL;
+  E.ft.var.tokens = NULL;
+  E.ft.preprocessor.tokens = NULL;
+  E.ft.number.tokens = NULL;
+  E.ft.upper.tokens = NULL;
+  E.ft.keyword.tokens = NULL;
+
+  editorLoadHLTemplate();
 }
 
 /******************* append buffer **************/
@@ -655,6 +730,9 @@ void editorDrawRows(struct abuf* ab)
 {
     char str[MAX_BF_ESEQ_SIZE];   
     int y;
+
+    int multiLineComment = 0;
+    
     for ( y=0;y<E.screenrows;y++) {
 
        int filerow = E.rowoff + y;
@@ -684,16 +762,44 @@ void editorDrawRows(struct abuf* ab)
             int len = E.row[filerow].rsize - E.coloff;
             int j;
             char c;
-            //char *hlstr;
+            int hlresult;
                         
             if ( len < 0 ) len = 0;
             if ( len > E.screencols ) len = E.screencols;
 
             
             for ( j = 0 ; j < len ; j++) {
-           
-                        
-            if ( editorRowGetHighLight(&E.row[filerow],E.coloff + j,&str[0])  == 1 ) {
+
+            /*
+            hlresult = editorRowGetHighLight(&E.row[filerow],E.coloff + j,&str[0]);
+                                    
+            switch(hlresult){
+
+            case (0):
+              c = E.row[filerow].render[E.coloff + j];
+              abAppend(ab,&c,1);   
+                         
+            break;
+            case (1):
+
+              abAppend(ab,&str[0],strlen(str));
+              c = E.row[filerow].render[E.coloff + j];
+              abAppend(ab,&c,1);
+
+            break;
+             
+            case (2):
+              c = E.row[filerow].render[E.coloff + j];
+              abAppend(ab,&c,1);   
+              multiLineComment = 1;
+
+            break;  
+            
+            	
+            }
+
+            */ 
+            if ( editorRowGetHL(&E.row[filerow],E.coloff + j,&str[0])  == 1 ) {
                  
               abAppend(ab,&str[0],strlen(str));
               c = E.row[filerow].render[E.coloff + j];
@@ -703,18 +809,18 @@ void editorDrawRows(struct abuf* ab)
 
               c = E.row[filerow].render[E.coloff + j];
               abAppend(ab,&c,1);   
-              	
+              multiLineComment = 1;	
               }
                
                           	
-            }  
+           }  
             
            //abAppend(ab,&E.row[filerow].render[E.coloff],len);
         	
           }
 	  
-	abAppend(ab,"\x1b[0m",5);     // reset all hightlight modes
-    abAppend(ab,"\x1b[K",3);	  // erase until end of line
+	if (( multiLineComment != 1 )) abAppend(ab,"\x1b[0m",5);     // reset all hightlight modes
+    abAppend(ab,"\x1b[K",3);	                            // erase until end of line
     abAppend(ab,"\r\n",2);
 		  
   }		
@@ -729,9 +835,8 @@ void editorRefreshScreen()
     
     editorScroll();
 
-    abAppend(&ab,"\x1b[?251",6);    // hide cursor
-    //abAppend(&ab,"\x1b[2J",4);      // erase entire screen
-    abAppend(&ab,"\x1b[H",3);       // put cursor at home 
+    abAppend(&ab,ESEQ_CURSOR_HIDE,strlen(ESEQ_CURSOR_HIDE));    
+    abAppend(&ab,ESEQ_CURSOR_GOHOME,strlen(ESEQ_CURSOR_GOHOME));  
         
     editorDrawRows(&ab);
     editorDrawStatusBar(&ab);
@@ -741,8 +846,7 @@ void editorRefreshScreen()
     snprintf(buf,sizeof(buf),"\x1b[%d;%dH",(E.cy - E.rowoff) + 1,( E.rx - E.coloff ) + 1 ); // put cursor at pos cx,cy
     abAppend(&ab,buf,strlen(buf));
     
-    
-    abAppend(&ab,"\x1b[?25h",6);     // show cursor
+    abAppend(&ab,ESEQ_CURSOR_SHOW,strlen(ESEQ_CURSOR_SHOW));  
     write(STDOUT_FILENO,ab.b,ab.len);
     
     abFree(&ab);	
@@ -768,12 +872,25 @@ void editorDrawStatusBar(struct abuf *ab)
 {
     int len = 0;
     char status[80],rstatus[80];
-    // inverted printed colors
-    abAppend(ab,"\x1b[7m",4);
     int rlen = 0;
-    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s",(E.filename?E.filename:"[No name]"),
-    E.cy + 1,E.cx +1,(E.filetype?E.filetype:""));
+    char *shortFileName = E.filename;
 
+    if (shortFileName) {
+
+      if ( strlen(shortFileName) > 30 ) {
+        while ( strlen(shortFileName) > 30 )
+          shortFileName++;
+        shortFileName[0]='.';
+        shortFileName[1]='.';
+        shortFileName[2]='.';
+      }
+    }
+      
+    abAppend(ab,ESEQ_INVERT_COLOR,strlen(ESEQ_INVERT_COLOR));  
+    
+    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s",(shortFileName?shortFileName:"[No name]"),
+    E.cy + 1,E.cx +1,(E.filetype?E.filetype:""));
+    
     if ( len > E.screencols ) len = E.screencols;
 
     abAppend(ab,status,len); 
@@ -795,9 +912,10 @@ void editorDrawStatusBar(struct abuf *ab)
       }
     
     }
-    // go back to normal color printing
-    abAppend(ab,"\x1b[m",3);
-    abAppend(ab,"\r\n",2);
+        
+    abAppend(ab,ESEQ_RESET_MODE,strlen(ESEQ_RESET_MODE));
+    abAppend(ab,ESEQ_CR_NL,strlen(ESEQ_CR_NL));
+    
 }
 
 void editorSetStatusMessage(const char *fmt, ...)
@@ -821,16 +939,175 @@ void editorDrawMessageBar(struct abuf *ab)
 
 /**************** file IO *********************/
 
+void editorLoadHLTemplate(){
+
+     strcpy(E.ft.name,"C");
+ 
+     E.ft.var.tokens = malloc (90);
+ 
+     E.ft.var.tokens[0]="int";
+     E.ft.var.tokens[1]="float";
+     E.ft.var.tokens[2]="double";
+     E.ft.var.tokens[3]="char";
+     E.ft.var.tokens[4]="short";
+     E.ft.var.tokens[5]="long";
+     E.ft.var.tokens[6]="void";
+     E.ft.var.tokens[7]="signed";
+     E.ft.var.tokens[8]="unsigned";
+     E.ft.var.tokens[9]="size_t";
+     E.ft.var.tokens[10]="ssize_t";
+     E.ft.var.tokens[11]="\0";
+ 
+     E.ft.var.fstyle.colorfg =  10;
+     E.ft.var.fstyle.colorbg =  0;
+     E.ft.var.fstyle.bold    =  'Y';
+     E.ft.var.fstyle.italic  =  'N';
+     E.ft.var.fstyle.underline= 'N';
+     E.ft.var.fstyle.regular=   'N';  
+ 
+     E.ft.keyword.tokens = malloc(200);
+ 
+     E.ft.keyword.tokens[0]="auto";
+     E.ft.keyword.tokens[1]="break";
+     E.ft.keyword.tokens[2]="case";
+     E.ft.keyword.tokens[3]="const";
+     E.ft.keyword.tokens[4]="continue";
+     E.ft.keyword.tokens[5]="default";
+     E.ft.keyword.tokens[6]="do";
+     E.ft.keyword.tokens[7]="else";
+     E.ft.keyword.tokens[8]="enum";
+     E.ft.keyword.tokens[9]="extern";
+     E.ft.keyword.tokens[10]="goto";
+     E.ft.keyword.tokens[11]="if";
+     E.ft.keyword.tokens[12]="register";
+     E.ft.keyword.tokens[13]="return";
+     E.ft.keyword.tokens[14]="sizeof";
+     E.ft.keyword.tokens[15]="static";
+     E.ft.keyword.tokens[16]="struct";
+     E.ft.keyword.tokens[17]="switch";
+     E.ft.keyword.tokens[18]="typedef";
+     E.ft.keyword.tokens[19]="union";
+     E.ft.keyword.tokens[20]="volatile";
+     E.ft.keyword.tokens[21]="while";
+     E.ft.keyword.tokens[22]="\0";
+ 
+     E.ft.keyword.fstyle.colorfg =  15;
+     E.ft.keyword.fstyle.colorbg =  0;
+     E.ft.keyword.fstyle.bold    =  'Y';
+     E.ft.keyword.fstyle.italic  =  'N';
+     E.ft.keyword.fstyle.underline= 'N';
+     E.ft.keyword.fstyle.regular=   'N';
+     
+     E.ft.preprocessor.tokens = malloc(120);
+ 
+     E.ft.preprocessor.tokens[0]="#define";
+     E.ft.preprocessor.tokens[1]="#include";
+     E.ft.preprocessor.tokens[2]="#ifdef";
+     E.ft.preprocessor.tokens[3]="#undef";
+     E.ft.preprocessor.tokens[4]="#ifndef";
+     E.ft.preprocessor.tokens[5]="#if";
+     E.ft.preprocessor.tokens[6]="#else";
+     E.ft.preprocessor.tokens[7]="#elif";
+     E.ft.preprocessor.tokens[8]="#endif";
+     E.ft.preprocessor.tokens[9]="#error";
+     E.ft.preprocessor.tokens[10]="#pragma";
+     E.ft.preprocessor.tokens[11]="\0";
+ 
+     E.ft.preprocessor.fstyle.colorfg =    15;
+     E.ft.preprocessor.fstyle.colorbg =     0;
+     E.ft.preprocessor.fstyle.bold    =   'Y';
+     E.ft.preprocessor.fstyle.italic =    'N';
+     E.ft.preprocessor.fstyle.underline = 'N';
+     E.ft.preprocessor.fstyle.regular =   'N';
+ 
+     E.ft.number.fstyle.colorfg =  156;
+     E.ft.number.fstyle.colorbg =  0;
+     E.ft.number.fstyle.bold    =  'N';
+     E.ft.number.fstyle.italic  =  'N';
+     E.ft.number.fstyle.underline= 'N';
+     E.ft.number.fstyle.regular=   'N'; 
+ 
+     
+     E.ft.operator.tokens = malloc(200);
+         
+     E.ft.operator.tokens[0]="+";
+     E.ft.operator.tokens[1]="-";
+     E.ft.operator.tokens[2]="*";
+     E.ft.operator.tokens[3]="/";
+     E.ft.operator.tokens[4]="%";
+     E.ft.operator.tokens[5]="++";
+     E.ft.operator.tokens[6]="--";
+     E.ft.operator.tokens[7]="==";
+     E.ft.operator.tokens[8]="!=";
+     E.ft.operator.tokens[9]=">";
+     E.ft.operator.tokens[10]="<";
+     E.ft.operator.tokens[11]=">=";
+     E.ft.operator.tokens[12]="<=";
+     E.ft.operator.tokens[13]="<=>";
+     E.ft.operator.tokens[14]="!";
+     E.ft.operator.tokens[15]="&&";
+     E.ft.operator.tokens[16]="||";
+     E.ft.operator.tokens[17]="~";
+     E.ft.operator.tokens[18]="&";
+     E.ft.operator.tokens[19]="|";
+     E.ft.operator.tokens[20]="^";
+     E.ft.operator.tokens[21]="<<";
+     E.ft.operator.tokens[22]=">>";
+     E.ft.operator.tokens[23]="=";
+     E.ft.operator.tokens[24]="+=";
+     E.ft.operator.tokens[25]="-=";
+     E.ft.operator.tokens[26]="*=";
+     E.ft.operator.tokens[27]="/=";
+     E.ft.operator.tokens[28]="%=";
+     E.ft.operator.tokens[29]="&=";
+     E.ft.operator.tokens[30]="|=";
+     E.ft.operator.tokens[31]="<<=";
+     E.ft.operator.tokens[32]=">>=";
+     E.ft.operator.tokens[33]="->";
+     E.ft.operator.tokens[34]=".";
+     E.ft.operator.tokens[35]="->*";
+     E.ft.operator.tokens[36]=".*";
+     E.ft.operator.tokens[37]=":";
+     E.ft.operator.tokens[38]=";";
+     E.ft.operator.tokens[39]=",";
+     E.ft.operator.tokens[40]="\0";
+ 
+     E.ft.operator.fstyle.colorfg =  14;
+     E.ft.operator.fstyle.colorbg =  0;
+     E.ft.operator.fstyle.bold    =  'N';
+     E.ft.operator.fstyle.italic  =  'N';
+     E.ft.operator.fstyle.underline= 'N';
+     E.ft.operator.fstyle.regular=   'Y'; 
+ 
+     E.ft.upper.fstyle.colorfg =  9;
+     E.ft.upper.fstyle.colorbg =  0;
+     E.ft.upper.fstyle.bold    =  'Y';
+     E.ft.upper.fstyle.italic  =  'N';
+     E.ft.upper.fstyle.underline= 'N';
+     E.ft.upper.fstyle.regular=   'N';
+ 
+     E.ft.str.fstyle.colorfg =  2;
+     E.ft.str.fstyle.colorbg =  0;
+     E.ft.str.fstyle.bold    =  'N';
+     E.ft.str.fstyle.italic  =  'N';
+     E.ft.str.fstyle.underline= 'N';
+     E.ft.str.fstyle.regular=   'Y';
+
+}
+
 void editorOpen(char *filename)
 {
     free(E.filename);
     E.filename = strdup(filename);
 
+    //TODO : match against known file types
     E.filetype = strrchr(filename,'.');
-    if ( *E.filetype != '\0' ) 
-      E.filetype++;
-    else
-      E.filetype=NULL;
+    if ( E.filetype != NULL ) {
+     E.filetype++;
+     if ( *E.filetype == '\0')
+      E.filetype = NULL;
+    } else
+      E.filetype = NULL; 
       
     FILE *fp = fopen(filename,"r");
 
@@ -849,6 +1126,8 @@ void editorOpen(char *filename)
       editorAppendRow(line,linelen,E.numrows);    
     }
 
+    
+    
     E.dirty = 0;
     free(line);
     fclose(fp);
@@ -931,7 +1210,7 @@ void editorAppendRow(char *s, size_t len,int pos)
     E.row[pos].hl = NULL;
            
     editorUpdateRowRender(&E.row[pos]);
-    editorUpdateRowHighLight(&E.row[pos]);
+    editorUpdateRowHL(&E.row[pos]);
     
 	E.numrows++;
 }
@@ -968,16 +1247,6 @@ void editorUpdateRowRender(erow* row)
     row->render[idx]='\0';
     row->rsize = idx;
     
-    // only makes a copy of chars to render    
-    /*
-    free(row->render);
-    row->render = malloc(row->size + 1);
-    for (j=0;j<row->size;j++){ 
-      row->render[j]=row->chars[j];
-    }
-    row->render[j]='\0';
-    row->rsize = row->size;
-    */
 }
 
 
@@ -1008,7 +1277,7 @@ void editorRowInsertChar(erow *row,int at,int c)
     row->size++;
     row->chars[at] = c;
     editorUpdateRowRender(row);
-    editorUpdateRowHighLight(row); 
+    editorUpdateRowHL(row); 
 }
 
 void editorRowDelChar(erow *row,int at)
@@ -1023,7 +1292,7 @@ void editorRowDelChar(erow *row,int at)
         if ( ( row->chars = realloc(row->chars, row->size ) ) == NULL ) die("realloc");
         row->size--;
         editorUpdateRowRender(row);
-        editorUpdateRowHighLight(row);  
+        editorUpdateRowHL(row);  
         E.dirty++; 
             	
       } else if ( at == row->size ) {
@@ -1032,7 +1301,7 @@ void editorRowDelChar(erow *row,int at)
           	
             editorRowMerge(&E.row[E.cy],E.row[E.cy+1].chars,E.row[E.cy+1].size);  
             editorUpdateRowRender(row);
-            editorUpdateRowHighLight(row);
+            editorUpdateRowHL(row);
             editorRowDel(E.cy+1);
             E.dirty++;      	
           } 
@@ -1093,16 +1362,19 @@ void editorRowMerge(erow *row,char *s,int len)
     row->size += len;       
 }
 
-int editorRowGetHighLight(erow *row,int pos,char *str) 
+int editorRowGetHL(erow *row,int pos,char *str) 
 {
     char temp[MAX_BF_ESEQ_SIZE];
 
     strcpy(str,"\0");
+    strcpy(temp,"\0");
 
     if ( GET_HL_CHANGE(row->hl[pos]) ) { 
+
+      if ( GET_HL_ML_COMMENT(row->hl[pos]) ) 
+        return 2;
              
       if  ( !( GET_HL_RESET(row->hl[pos]) ) ) {
-
 
         ESEQ_SET_BG_COLOR(temp,GET_BG_COLOR(row->hl[pos]));
         strcat(str,temp);
@@ -1110,143 +1382,408 @@ int editorRowGetHighLight(erow *row,int pos,char *str)
         ESEQ_SET_FG_COLOR(temp,GET_FG_COLOR(row->hl[pos]));
         strcat(str,temp);
      
-        if ( GET_FT_BOLD(row->hl[pos]) ) {
+        if (!( GET_FT_REGULAR(row->hl[pos]))) {
 
-          ESEQ_SET_FONT_BOLD(temp);
-          strcat(str,temp);
-        }
+         
+          if ( GET_FT_BOLD(row->hl[pos]) ) {
 
-        if ( GET_FT_ITALIC(row->hl[pos]) ){
+            ESEQ_SET_FONT_BOLD(temp);
+            strcat(str,temp);
+          } else {
 
-          ESEQ_SET_FONT_ITALIC(temp);
-          strcat(str,temp);
-        }
+            ESEQ_SET_FONT_NOT_BOLD(temp);
+          	strcat(str,temp);
+          }
 
-        if ( GET_FT_UNDERLINE(row->hl[pos]) ){
+          if ( GET_FT_ITALIC(row->hl[pos]) ){
+
+            ESEQ_SET_FONT_ITALIC(temp);
+            strcat(str,temp);
+          } else {
+
+          	ESEQ_SET_FONT_NOT_ITALIC(temp);
+          	strcat(str,temp);
+          }
+
+          if ( GET_FT_UNDERLINE(row->hl[pos]) ){
       
-          ESEQ_SET_FONT_UNDERLINE(temp);
-          strcat(str,temp);
-        }
+            ESEQ_SET_FONT_UNDERLINE(temp);
+            strcat(str,temp);
+          } else {
+
+            ESEQ_SET_FONT_NOT_UNDERLINE(temp);
+            strcat(str,temp);
+          	
+          }
             
+       } else {
+
+       	  ESEQ_SET_FONT_REGULAR(temp);
+          strcat(str,temp);
+
+         }
+        
+
         return 1;
       }
 
       else {
-        ESEQ_SET_RESET(str); 
+
+        ESEQ_SET_RESET(str);
+        strcat(str,temp); 
       	return 1;
       }
     
     } 
+
     return 0;
-    //if (! ( GET_HL_CHANGE(row->hl[pos]) ) ) { ESEQ_SET_RESET(str); return 1;}
-    //return 0;
+   
 }
 
-void editorUpdateRowHighLight(erow *row)
+void editorUpdateRowHLStr(erow *row,hlType *hl)
 {
     int j;
-    char *last,*current;
-    int lastpos;
-        
-    row->hl = realloc( row->hl,row->rsize * sizeof(__int32_t));
-    
-    //if ( ( p = strstr(row->render,"/*") ) != NULL ) {
-      	
-    //}
-
+    int initpos;
+    int size;
+          
     for ( j = 0; j < row->rsize ; j++) {
 
-      //is any highlight applicable ? we only know in the end of all possibilities
-      // highlight precedence ? 
-      //numbers
-      if ( isdigit(row->render[j]) ) {
-        
-        SET_HL_CHANGEON(row->hl[j]);
-        SET_FG_COLOR(row->hl[j],3);
-        //SET_BG_COLOR(row->hl[j],15);
-        //SET_FT_UNDERLINE(row->hl[j]);
-        //SET_FT_BOLD(row->hl[j]);
-        SET_FT_ITALIC(row->hl[j]);
-       
+      if ( row->render[j] == '\'' ) {
+        size = 1;
+        initpos = j;
+        while ( row->render[++j] != '\'' && ( size + initpos < row->rsize) ) 
+          size++;
+        editorUpdateRowHLApply(row,hl,initpos,size+1);
       } 
-      else if isupper(row->render[j]){ 
-        SET_HL_CHANGEON(row->hl[j]);
-        SET_FG_COLOR(row->hl[j],9);
+   }
 
-      } else {
-      
-      	SET_HL_CHANGEON(row->hl[j]);
-      	SET_HL_RESET(row->hl[j]);	
+   for ( j = 0; j < row->rsize ; j++) {
+   
+         if ( row->render[j] == '\"' ) {
+           size = 1;
+           initpos = j;
+           while ( row->render[++j] != '\"' && ( size + initpos < row->rsize) ) 
+             size++;
+           editorUpdateRowHLApply(row,hl,initpos,size+1);
+           
+         } 
       }
+}
 
-       
+void editorUpdateRowHLUpper(erow *row,hlType *hl)
+{
+    int j;
+    int initpos;
+    int size;
+          
+    for ( j = 0; j < row->rsize ; j++) {
+
+      if ( isupper(row->render[j]) ) {
+        size = 1;
+        initpos = j;
+        while (isupper(row->render[++j])) 
+          size++;
+
+        if ( ( row->render[j] == ' ' || row->render[j] == '\0' || ispunct(row->render[j])) 
+            &&
+           ( initpos == 0 || row->render[initpos-1] == '_' ||row->render[initpos-1] == ' ' || ispunct(row->render[j]))     
+            && 
+           ( !( islower(row->render[(initpos>0?initpos-1:initpos)]  ) ) ) ) {
+
+           editorUpdateRowHLApply(row,hl,initpos,size);
              
-      //delimiters
-
-      //keywords
-
-      //defines
-
-
-    }
-    //TODO
-    last = current = row->render;
-    lastpos = 0;
-      
-     while ( ( current = strstr(last,"auto") ) != NULL ){
-
-
-          int pos = lastpos + current - last;
- 
-          SET_HL_CHANGEON(row->hl[pos]);
-          SET_FG_COLOR(row->hl[pos],10);
-          SET_HL_CHANGEON(row->hl[pos+1]);
-          SET_FG_COLOR(row->hl[pos+1],10);
-          SET_HL_CHANGEON(row->hl[pos+2]);
-          SET_FG_COLOR(row->hl[pos+2],10);
-          SET_HL_CHANGEON(row->hl[pos+3]);
-          SET_FG_COLOR(row->hl[pos+3],10);             
-          SET_HL_CHANGEON(row->hl[pos+4]); 
-          SET_HL_RESET(row->hl[pos + 4]);
-
-          current += 4;
-          lastpos = pos + 4;
-          
-          last = current;
-          
-                    
-      }   
-    
-     }   
-     /* 
-     p = row->render;
-     
-     while ( ( p = strstr(p,"int") ) != NULL ){
-
-          int pos = p - row->render;
- 
-          SET_HL_CHANGEON(row->hl[pos]);
-          SET_FG_COLOR(row->hl[pos],9);
-          SET_HL_CHANGEON(row->hl[pos+1]);
-          SET_FG_COLOR(row->hl[pos+1],9);
-          SET_HL_CHANGEON(row->hl[pos+2]);
-          SET_FG_COLOR(row->hl[pos+2],9);
-          SET_HL_CHANGEON(row->hl[pos+3]); 
-          SET_HL_RESET(row->hl[pos + 3]);
-          if ( *p == '\0') 
-            break; 
-          else
-            p++;
-
-     }   
-     */
-     
+       }
+              
+     } 
+   }
 
 }
 
-   
+void editorUpdateRowHLNumbers(erow *row,hlType* hl)
+{
+    int j;
+    char *current,*last;
+    int pos;
+    int initpos;
+    int offset;
+    int size;
+          
+    for ( j = 0; j < row->rsize ; j++) {
 
+        if ( isdigit(row->render[j]) ) {
+        
+          size = 1;
+
+          initpos = j;
+          
+          while (isdigit(row->render[++j])) size++;
+
+            if ( ( row->render[j] == ' '  || row->render[j] == '\0' || 
+                   ispunct(row->render[j])) 
+                   &&
+                 ( initpos == 0 || row->render[initpos-1] == ' ' || 
+                   ispunct(row->render[j]))      ) {
+
+              editorUpdateRowHLApply(row,hl,initpos,size);
+             
+            }
+
+              
+        } 
+    }
   
+   last = row->render;
+   offset = 0;
+   
+   while ( ( current = strstr(last,"0x") ) != NULL ){
+
+     size = 2;
+
+     pos = ( current - last) + offset; 
+
+     initpos = pos;
+
+     while (isxdigit(row->render[(pos++) + 2])) size++;
+
+     pos--;
+     
+     if ( ( row->render[(pos) + 2] == ' ' || row->render[(pos) + 2] == '\0' ) && 
+          ( initpos == 0 || row->render[initpos - 1] == ' ' )  ) {
+
+       editorUpdateRowHLApply(row,hl,initpos,size);
+      
+     	
+     } else {
+
+         for ( j = 0;j < size ; j++ ){
+           SET_HL_CHANGEON(row->hl[initpos + j]);
+           SET_HL_RESET(row->hl[initpos + j]);
+         }
+     
+       }
+
+   last = current;
+   last++;
+   offset = initpos + 1;  
+   }
+
+   
+}
+void editorUpdateRowHL(erow *row)
+{
+    int j = 0;
+    int pos;
+    static int commented;
+    char *current,*last;
+        
+    row->hl = realloc( row->hl,row->rsize * sizeof(__int32_t));
+
+     
+    for ( j = 0; j < row->rsize ; j++) {
+
+      if (row->render[j] == '_')  {
+
+        if ( isupper( row->render[j>0?j-1:j]) 
+        || isupper(row->render[j<row->rsize?j+1:j])) {
+
+          SET_HL_CHANGEON(row->hl[j]);
+          SET_FT_BOLD(row->hl[j]);
+          SET_FG_COLOR(row->hl[j],9);
+      	}       
+     
+      }
+      else {
+      	  SET_HL_CHANGEON(row->hl[j]);
+      	  SET_HL_RESET(row->hl[j]);	
+      }
+     }
+    
+      
+    editorUpdateRowHLTokens(row,&E.ft.var);
+    editorUpdateRowHLTokens(row,&E.ft.keyword);
+    editorUpdateRowHLTokens(row,&E.ft.preprocessor);
+    editorUpdateRowHLNumbers(row,&E.ft.number);
+    editorUpdateRowHLOps(row,&E.ft.operator);
+    editorUpdateRowHLUpper(row,&E.ft.upper);
+    editorUpdateRowHLStr(row,&E.ft.str);
+     
+
+   last = row->render; 
+   
+   int begin,end;
+   int offset = 0;
+   
+   //if ( ( current = strstr(last,"/*") ) != NULL ) {
+   while ( ( current = strstr(last,"/*") ) != NULL ) {      
+
+         begin = ( current - last ) + offset;
+
+         if ( ( current = strstr(last,"*/") )!= NULL ) {
+
+            end = ( current - last ) + offset;
+                        
+            if ( end > begin ) {
+
+              end = ( current - last  ) + 2 + offset;
+              commented = 0;
+              offset = end - 1;
+
+                for (j = begin ; j < end ; j++ ) {
+                   SET_HL_CHANGEON(row->hl[j]);
+                   SET_FG_COLOR(row->hl[j],3);
+                   SET_FT_ITALIC(row->hl[j]);
+                }
+ 
+              last = current;
+              last++;
+              
+              continue; 	
+
+            } else {
+                
+                end = row->rsize;
+                commented = 1;
+                SET_HL_CHANGEON(row->hl[begin]);
+                SET_HL_ML_COMMENT(row->hl[begin]);
+
+                last = current;
+                last++;
+            }
+                
+         } else {
+                
+                end = row->rsize;
+            
+                for (j = begin ; j < end ; j++ ) {
+                   SET_HL_CHANGEON(row->hl[j]);
+                   SET_FG_COLOR(row->hl[j],3);
+                   SET_FT_ITALIC(row->hl[j]);
+                }
+
+         	commented = 1;
+            SET_HL_CHANGEON(row->hl[begin]);
+         	SET_HL_ML_COMMENT(row->hl[begin]);
+         	break;
+         }
+
+         
+         for (j = begin ; j < end ; j++ ) {
+           SET_HL_CHANGEON(row->hl[j]);
+           SET_FG_COLOR(row->hl[j],3);
+           SET_FT_ITALIC(row->hl[j]);
+         }
+
+       
+    }
+    
+    
+        
+       if ( ( current = strstr(row->render,"//") ) != NULL ) {
+   
+         pos = current - row->render;
+         for (j = pos ; j < row->size ; j++ ) {
+   
+         SET_HL_CHANGEON(row->hl[j]);
+         SET_FG_COLOR(row->hl[j],3);
+         SET_FT_ITALIC(row->hl[j]);
+               	
+         }
+        
+       return;	
+       }
+
+
+
+}   
+
+void editorUpdateRowHLApply(erow *row,hlType *hl,int pos, int size)
+{
+  int i;
+  if ( pos < 0 || size <= 0 || pos + size > row->rsize ) return;
+   
+  for ( i = 0; i < size; i++) {
+    SET_HL_CHANGEON(row->hl[pos+i]);
+    if (hl->fstyle.bold        == 'Y' ) SET_FT_BOLD(row->hl[pos+i]);
+    if (hl->fstyle.italic      == 'Y' ) SET_FT_ITALIC(row->hl[pos+i]);
+    if (hl->fstyle.underline   == 'Y' ) SET_FT_UNDERLINE(row->hl[pos+i]);
+    if (hl->fstyle.regular     == 'Y' ) SET_FT_REGULAR(row->hl[pos+i]);
+    SET_FG_COLOR(row->hl[pos+i],hl->fstyle.colorfg);
+    SET_BG_COLOR(row->hl[pos+i],hl->fstyle.colorbg);  
+  }
+}
+
+void editorUpdateRowHLOps(erow *row,hlType *hl)
+{
+  
+    int count = 0;
+    int size;
+    int offset;
+    int pos;
+    char *last,*current;
+        
+    last = row->render;
+    offset = 0;
+
+    if ( hl->tokens == NULL ) return;
+    
+    while  ( strcmp(hl->tokens[count],"\0") != 0 ){
+
+      while ( ( current = strstr(last,hl->tokens[count]) ) != NULL ){
+
+        pos = current - last + offset;
+        size = strlen(hl->tokens[count]);
+        editorUpdateRowHLApply(row,hl,pos,size);
+      
+        offset = pos + 1;
+        last = current;
+        last++;
+      }   
+
+      last = row->render;
+      offset = 0;
+      count++; 
+   }
+}
+
+void editorUpdateRowHLTokens(erow *row,hlType* hl)
+{
+
+    int count = 0;
+    int size;
+    int offset;
+    int pos;
+    char *last,*current;
+        
+    last = row->render;
+    offset = 0;
+
+    if ( hl->tokens == NULL ) return;
+    
+    while  ( strcmp(hl->tokens[count],"\0") != 0 ){
+
+      while ( ( current = strstr(last,hl->tokens[count]) ) != NULL ){
+
+        pos = current - last + offset;
+        size = strlen(hl->tokens[count]);
+        char leftchr,rightchr;
+
+        leftchr  = (pos>0?row->render[pos-1]:'*');
+        rightchr = (( pos + size )<row->rsize?row->render[pos+size]:'*');
+                      
+        if (  ( isalnum(leftchr) == 0 ) && ( isalnum(rightchr) == 0 ) )  
+          editorUpdateRowHLApply(row,hl,pos,size);
+   
+        offset = pos + 1;
+        last = current;
+        last++;
+      }   
+
+     last = row->render;
+     offset = 0;
+     count++; 
+   }
+
+}    
 
 /**********************  editor operations ******************/
 
@@ -1263,7 +1800,7 @@ void editorRowInsert()
     editorAppendRow(&E.row[E.cy].chars[E.cx],strlen(&E.row[E.cy].chars[E.cx]),E.cy + 1);
     if ( E.cx < E.row[E.cy].size  ) editorRowCut(&E.row[E.cy],E.cx);
     editorUpdateRowRender(&E.row[E.cy]);
-    editorUpdateRowHighLight(&E.row[E.cy]);
+    editorUpdateRowHL(&E.row[E.cy]);
     E.dirty++;
 }
 
@@ -1357,6 +1894,10 @@ void freeBuffers()
 
 	free(E.row);
 	free(E.filename);
+	free(E.ft.var.tokens);
+    free(E.ft.keyword.tokens);
+    free(E.ft.preprocessor.tokens);
+    free(E.ft.operator.tokens);
 }
 
 /********************   Signal Handling  ****************/
