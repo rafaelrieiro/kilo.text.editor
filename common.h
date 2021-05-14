@@ -1,7 +1,19 @@
 #ifndef _H_COMMON_
 #define _H_COMMON_
 
-
+#include <time.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <termios.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <errno.h>
+#include <sys/ioctl.h>
+#include <string.h>
+#include <time.h>
+#include <stdarg.h>
+#include <signal.h>
+#include <fcntl.h>
      
 #define CTRL_KEY(k) ( k & 0x1f )
 
@@ -14,6 +26,20 @@
 #define KILO_QUIT_TIMES 3
 
 typedef struct {
+      unsigned int line;
+      unsigned int lbefore;
+      unsigned int lafter;
+} hlLnAttr;
+
+typedef struct {
+
+    hlLnAttr *list;
+    unsigned int len;
+    unsigned int size;
+
+} hlLnList;
+
+typedef struct {
 
     int  rsize;
     char *render;
@@ -21,6 +47,7 @@ typedef struct {
     char *chars;
     char renderInUse;
     __int32_t* hl; 
+    //__int32_t hl;
 
 } erow;
 
@@ -73,6 +100,7 @@ typedef struct {
     int    dirty;
     fileType ft;
     struct termios orig_termios;
+    hlLnList hlist;
 
 } editorConfig;
 

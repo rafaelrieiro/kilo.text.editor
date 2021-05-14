@@ -30,7 +30,6 @@
 #define ESEQ_SET_FONT_REGULAR(str)      (sprintf(str,"\x1b[10m"))
 #define ESEQ_SET_RESET(str)             (sprintf(str,"\x1b[0m"))
 
-
 #define GET_FG_COLOR(x)         ( x & 0xff )
 #define GET_BG_COLOR(x)         ( ( x & 0xff00 ) >> 8 )
 #define GET_HL_CHANGE(x)        ( x & 0x80000000 )
@@ -55,6 +54,7 @@
 
 int  editorRowGetHL(erow *row,int pos,char *str);
 void editorUpdateHL(editorConfig *text,char *oldline,char *newline, int lineNumber);
-
+void hlUpdateAll(editorConfig *text);
+void hlUpdateRow(editorConfig *text,int linePos);
 
 #endif

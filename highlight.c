@@ -4,6 +4,9 @@
 #define _DEFAULT_SOURCE
 
 #include "highlight.h"
+#ifndef _HLLINES_H_
+#include "hllines.h"
+#endif
 
 static void hlUpdateUpper(erow *row,hlType *hl, char *s, int initPos);
 static void hlUpdateReset(erow *row, int offsetPos, int size);
@@ -14,8 +17,6 @@ static int  hlUpdateCommentRec(erow *row, fileType *ft, unsigned int initPos);
 static void hlUpdateApply(erow *row, hlType *hl,int initPos, int size);
 static int  hlUpdateStrRec(erow *row, hlType *hl, char *s, unsigned int offSetPos,unsigned int initPos);
 static int  hlUpdateNonComment(erow *row, fileType* ft, char *s,const int offsetPos);
-static int  hlIsUpdateFromInitRowNeeded(char *oldline,char *newline);
-static int  hlCountChanged(char *oldline,char *newline,char *s);
 static void hlUpdateFromCurrentRow(editorConfig *text,int lineNumber);
 static void hlUpdateFromInitRowUntil(editorConfig *text,int lineNumber);
 static void hlUpdateUntilFindString(editorConfig *text,hlType *hl,int* lineNumber,char *s,int* lastPos);
@@ -148,19 +149,18 @@ static void hlUpdateNumber(erow *row,hlType* hl,char *s, int initPos)
     int initNumberPos;
     int offset;
     unsigned int hlSize;
+    int strSize = strlen(s);
 
-    //for ( j = 0; j < row->rsize ; j++) {
     for ( j = 0; j < strlen(s) ; j++) {
-        //if ( isdigit(row->render[j]) ) {
-        if ( isdigit(s[j]) ) {
+       if ( isdigit(s[j]) ) {
         
-          hlSize = 1;
-
-          initNumberPos = j;
+         //hlSize = 1;
+         hlSize = 0;
+         initNumberPos = j;
           
-          //while (isdigit(row->render[++j])) hlSize++;
-          while (isdigit(s[++j])) hlSize++;
-                            
+         //while (isdigit(s[++j])) hlSize++;
+           while ( j < strlen(s) && isdigit(s[j++]) ) hlSize++;
+                           
             if ( ( ( s[j] == ' '  || s[j] == '\0' || 
                    ispunct(s[j]) ) && s[j] != '_' && ( !( isalpha(s[j] ) ) ) ) 
                    &&
@@ -168,25 +168,21 @@ static void hlUpdateNumber(erow *row,hlType* hl,char *s, int initPos)
                    ispunct(s[j]))      ) {
 
               hlUpdateApply(row,hl,initNumberPos+initPos,hlSize);
-             
             }
-
               
         } 
     }
   
-   
    offset = 0;
    
    while ( ( current = strstr(s,"0x") ) != NULL ){
-
      hlSize = 2;
-
      pos = ( current - s) + offset; 
 
      initNumberPos = pos;
 
-     while (isxdigit(s[(pos++) + 2])) hlSize++;
+     //while (isxdigit(s[(pos++) + 2])) hlSize++;
+     while ( (pos + 2) < strSize  && isxdigit(s[(pos++) + 2])) hlSize++;
 
      pos--;
      
@@ -194,7 +190,6 @@ static void hlUpdateNumber(erow *row,hlType* hl,char *s, int initPos)
           ( initNumberPos == 0 || s[initNumberPos - 1] == ' ' )  ) {
 
        hlUpdateApply(row,hl,initNumberPos+initPos,hlSize);
-      
      	
      } else {
 
@@ -209,8 +204,6 @@ static void hlUpdateNumber(erow *row,hlType* hl,char *s, int initPos)
    s++;
    offset = initNumberPos + 1;  
    }
-
-   
 }
  
 static void hlUpdateReset(erow *row, int offsetPos, int size)
@@ -313,73 +306,8 @@ static int hlUpdateCommentRec(erow *row,fileType *ft,unsigned int initPos)
 
      } else return 0; 
 
-     
-
  return 0;   
 }
-
-void oldeditorUpdateHL(editorConfig *text,char *oldline,char *newline,int lineNumber)
-{
-  int i;
-  
-  int multiLineHL;
-  char *t1;
-  int hlStart = 0;
-  int hlSize = 0;
-  
-   
-  //single line update?
-  
-
-  for ( i = 0; i < text->numrows ; i++ ){
-     
-   text->row[i].hl = realloc( text->row[i].hl,text->row[i].rsize * sizeof(__int32_t));
-
-   if ( (text->row[i].hl) == NULL ) die("realloc - editorUpdateHL");
-
-   memset(text->row[i].hl,0,text->row[i].rsize * sizeof(__int32_t));
-      
-   //multiLineHL = hlUpdateCommentRec(&text->row[i],ft,hlStart+hlSize);
-   multiLineHL = hlUpdateCommentRec(&text->row[i],&text->ft,hlStart+hlSize);
-   //multiLineHL = 0;   
-
-   switch (multiLineHL){
-
-    case 0:
-      hlStart = 0;
-      hlSize  = 0;
-    break;
-    case 1:
-
-      //i++;
-      //while (  ( i < text->numrows ) && (  ( t1 = strstr(text->row[i].render,"*/") )  == NULL ) ){
-    
-      //hlStart = 0;
-      //hlSize  = text->row[i].rsize; 
-                      
-      //hlUpdateApply(&text->row[i],&ft->comment,hlStart,hlSize);
-      //i++;
-      //} 
-
-      //if ( i < text->numrows && t1 != NULL ) {
-      //   hlStart = 0;
-      //   hlSize  = (t1 - text->row[i].render) + 1;
-      //   hlUpdateApply(&text->row[i],&ft->comment,hlStart,hlSize);
-      //   i--;
-      //}
-     
-    
-    break;
-    case 2:
-    break;
-    case 3:
-    break;
-
-    }   
-  
-  }
-}
-
 
 // offset is just used internally to index hl[+offsetPos]
 static int hlUpdateNonComment(erow *row, fileType* ft, char *s,const int offsetPos)
@@ -392,7 +320,7 @@ static int hlUpdateNonComment(erow *row, fileType* ft, char *s,const int offsetP
   hlUpdateNumber(row,&ft->number,s,offsetPos); 
   hlUpdateOp(row,&ft->operator,s,offsetPos);
   hlUpdateUpper(row,&ft->upper,s,offsetPos);
-  //return hlUpdateStrRec(row,&ft->str,s,offsetPos,0);
+  return hlUpdateStrRec(row,&ft->str,s,offsetPos,0);
   return 0;	
 }
 
@@ -420,14 +348,11 @@ static void hlUpdateOp(erow *row,hlType *hl, char *s ,int initPos)
     int hlSize;
     int offset;
     int initOpPos;
-    //char *last,*current;
     char *current;
 
     char *sCopy;
         
     sCopy = s;
-    
-    //lastCopy = last;
     
     offset = 0;
 
@@ -447,7 +372,6 @@ static void hlUpdateOp(erow *row,hlType *hl, char *s ,int initPos)
         s++;
       }   
 
-      //last = row->render;
       s = sCopy;
       offset = 0;
       count++; 
@@ -463,12 +387,9 @@ static void hlUpdateToken(erow *row, hlType* hl, char *s, int initPos)
     int hlSize;
     int offset;
     int pos;
-    //char *last,*current;
-    //char *lastCopy;
     char *current;
     char *sCopy;
     
-    //lastCopy = last;
     sCopy = s;
     
     offset = 0;
@@ -483,9 +404,11 @@ static void hlUpdateToken(erow *row, hlType* hl, char *s, int initPos)
         hlSize = strlen(hl->tokens[count]);
         char leftchr,rightchr;
 
-        leftchr  = (pos>0?s[pos-1]:'*');
-        rightchr = (( pos + hlSize )<(int)strlen(s)?s[pos+hlSize]:'*');
-                      
+        unsigned int ptrDiff = current - s;
+        
+        leftchr  = (ptrDiff>0?s[(current -s) -1]:'*');
+        rightchr = ((( ptrDiff + hlSize ) < strlen(s))?s[ptrDiff + hlSize]:'*');
+
         if (  ( isalnum(leftchr) == 0 ) && ( isalnum(rightchr) == 0 ) )  
           hlUpdateApply(row,hl,pos+initPos,hlSize);
    
@@ -493,14 +416,11 @@ static void hlUpdateToken(erow *row, hlType* hl, char *s, int initPos)
         s = current;
         s++;
       }   
-
-     //last = row->render;
+     
      s = sCopy;
      offset = 0;
      count++; 
    }
-
-  
 
 }    
 
@@ -512,10 +432,8 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
   int hlStart;
   int hlSize;
 
-  // find ' or " // ? what comes first ?
+  if (initPos >= strlen(s)) return 0; 
 
-  if ( initPos > strlen(s) || s[initPos] == '\0' ) return 0; // end or past end string
-  
   t1 = strchr(s + initPos,'\'');
   t2 = strchr(s + initPos,'\"');
 
@@ -524,15 +442,16 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
     else if (  t1 == NULL && t2 != NULL   ) {
 
       // found only "\""
-      hlStart = ( t2 - s );
-      
+      hlStart = ( t2 - ( s+initPos ) ) + initPos;
       t1 = strchr(t2+1,'\"');
 
       if (t1) { // found terminating "\""
-        hlSize  =  hlStart + ( t1 - t2 );
+        //hlSize  =  hlStart + ( t1 - t2 );
+        hlSize = (t1 - t2) + 1;
         hlUpdateApply(row,hl,hlStart+offSetPos,hlSize);
         // run again
-        hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
+        //hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
+        return hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
       } else { // terminating "\"" not found. fill until EOL and return 2
         hlSize = strlen(s) - hlStart;
         hlUpdateApply(row,hl,hlStart+offSetPos,hlSize);  
@@ -550,12 +469,12 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
       
       if (t2) {
          
-         hlSize  = (t2 - t1) + 1 ;  // ( +1 due to t1+1 in str, +1 for size of */ )
+         hlSize  = (t2 - t1) + 1 ;  // ( +1 to jump from * to / )
          // found '\'', fill until it
          hlUpdateApply(row,hl,hlStart+offSetPos,hlSize);
                
          // run again
-         hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize); 
+         return hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize); 
   	
       } else {
          // terminating "\'" not found. fill until EOL and return 3
@@ -576,7 +495,7 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
            // found '\'', fill until it
            hlUpdateApply(row,hl,hlStart+offSetPos,hlSize);
            // run again
-           hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
+           return hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
      	
        } else {
            // terminating "\'" not found. fill until EOL and return 3
@@ -585,7 +504,6 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
            return 3; 
        }
 
-
      } else if ( t1 != NULL && t2 != NULL && t2 < t1){
 
         hlStart = ( t2 - s );
@@ -593,10 +511,10 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
         t1 = strchr(t2+1,'\"');
 
         if (t1) { // found terminating "\""
-          hlSize  =  hlStart + ( t1 - t2 );
+          hlSize  =  ( t1 - t2 );
           hlUpdateApply(row,hl,hlStart+offSetPos,hlSize);
           // run again
-          hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
+          return hlUpdateStrRec(row,hl,s,offSetPos,hlStart+hlSize);
       } else { // terminating "\"" not found. fill until EOL and return 2
           hlSize = strlen(s) - hlStart;
           hlUpdateApply(row,hl,hlStart+offSetPos,hlSize);  
@@ -606,9 +524,276 @@ static int hlUpdateStrRec(erow *row, hlType *hl,  char *s, unsigned int offSetPo
      }
 
  return 0;   
-
 }
 
+
+void editorUpdateHL(editorConfig *text,char *oldline,char *newline,int lineNumber)
+{
+
+  int b;
+  
+    if ( oldline == NULL && newline == NULL ){
+    //full scan needed at least to lineNumber - initial file hl
+    // hlUpdateFromInitRowUntil(text,text->numrows);
+    hlUpdateFromCurrentRow(text,lineNumber);
+    } else if ( oldline == NULL && newline != NULL  ){
+    // scan from current line - no lines to compare	
+      // hlUpdateFromCurrentRow(text,lineNumber);      
+    } else if ( oldline != NULL && newline != NULL ){
+      // compare old and newlines for scan until current line
+      //if (hlIsUpdateFromInitRowNeeded(oldline,newline) ) 
+      //  hlUpdateFromInitRowUntil(text,lineNumber);
+      //hlUpdateFromInitRowUntil(text,text->numrows);
+      //  else     
+      //scan from current line
+      //hlUpdateFromCurrentRow(text,lineNumber);
+      }
+     
+}
+
+
+static void hlUpdateUntilFindString(editorConfig *text,hlType *hl,int* lineNumber,char *s,int* lastPos)
+{
+    char *pos;
+    
+    while ( (*lineNumber < text->numrows) && ( ( pos = strstr(text->row[*lineNumber].render,s) ) == NULL ) ) {
+      
+      hlUpdateApply(&text->row[*lineNumber],hl,0,text->row[*lineNumber].rsize);
+
+      *lineNumber += 1;	
+    }
+    
+    if (*lineNumber < text->numrows )
+    {
+      *lastPos = (pos - text->row[*lineNumber].render);
+      *lastPos += strlen(s); 
+      hlUpdateApply(&text->row[*lineNumber],hl,0,*lastPos);
+      
+    } 
+    
+}
+
+static void hlUpdateFromInitRowUntil(editorConfig *text,int lineNumber)
+{
+   int multiLine;
+   hlType hl;
+   char str[3];
+   int lastPos = 0;
+   int line = 0;
+
+   while ( line < lineNumber) {
+
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,0); 
+       while (multiLine){
+       //fill until terminating string and do hl in the rest of line
+         switch (multiLine){
+         case 1:
+           strcpy(str,"*/");
+           hl = text->ft.comment;
+         break;
+         case 2:
+           strcpy(str,"\"");
+           hl = text->ft.str;
+         break;
+         case 3:
+           strcpy(str,"\'");
+           hl = text->ft.str;
+         break;
+       	}	
+       if (line > text->numrows - 2) return;
+       line++; 
+       hlUpdateUntilFindString(text,&hl,&line,str,&lastPos);// update lineNumber and lastPos 
+
+       if (line > text->numrows - 1) return;
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
+       }  
+       line++;
+       
+    }
+}
+
+static void hlUpdateFromCurrentRow(editorConfig *text,int lineNumber)
+{
+   int multiLine;
+   hlType hl;
+   char str[3];
+   int lastPos = 0;
+   int line = lineNumber;
+
+  
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,0); 
+       while (multiLine){
+        //fill until terminating string and do hl in the rest of line
+         switch (multiLine){
+         case 1:
+           strcpy(str,"*/");
+           hl = text->ft.comment;
+         break;
+         case 2:
+           strcpy(str,"\"");
+           hl = text->ft.str;
+         break;
+         case 3:
+           strcpy(str,"\'");
+           hl = text->ft.str;
+         break;
+       	}	
+       if (line > text->numrows - 2) return;
+       line++; 
+       hlUpdateUntilFindString(text,&hl,&line,str,&lastPos);// update lineNumber and lastPos 
+
+       if (line > text->numrows - 1) return;
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
+       }  
+        
+       
+}	
+
+void hlUpdateAll(editorConfig *text)
+{
+   int multiLine;
+   hlType hl;
+   char str[3];
+   int lastPos = 0;
+   int line,endLine;
+   //unsigned initLine,numberOfLines;
+   int beginML,endML;
+   int i;
+   int sizePrevML;
+
+   line = 0;
+   endLine = text->numrows - 1; 
+
+   while ( line <= endLine) {
+       
+       //reset lafter from init line
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,0); 
+       if (multiLine == 0) {
+         
+         sizePrevML=hlLnListGetAfter(&text->hlist,line);
+         if (sizePrevML != 0) {
+            hlLnListResetAfter(&text->hlist,line);
+            hlLnListResetBefore(&text->hlist,line+sizePrevML);
+         }
+         
+       }
+       while (multiLine){
+           beginML = line;
+       //fill until terminating string and do hl in the rest of line
+         switch (multiLine){
+         case 1:
+           strcpy(str,"*/");
+           hl = text->ft.comment;
+         break;
+         case 2:
+           strcpy(str,"\"");
+           hl = text->ft.str;
+         break;
+         case 3:
+           strcpy(str,"\'");
+           hl = text->ft.str;
+         break;
+       	}	
+         if (line > text->numrows - 2) return;
+         line++; 
+         hlUpdateUntilFindString(text,&hl,&line,str,&lastPos);// update lineNumber and lastPos 
+           endML = line;
+           for (i=beginML+1;i<endML;i++)
+             hlLnListDeleteLine(&text->hlist,i);
+
+           hlLnListInsert(&text->hlist,beginML,0,endML-beginML);
+           hlLnListInsert(&text->hlist,endML,endML-beginML,0);
+         
+         if (line > text->numrows - 1) return;
+         multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
+         if (multiLine == 0) {
+           
+           sizePrevML=hlLnListGetAfter(&text->hlist,line);
+           if (sizePrevML != 0) {
+           hlLnListResetAfter(&text->hlist,line);
+           hlLnListResetBefore(&text->hlist,line+sizePrevML);
+           }
+         }
+       }  
+       line++;
+       
+    }
+}
+
+
+void hlUpdateRow(editorConfig *text,int linePos)
+{
+   int multiLine;
+   hlType hl;
+   char str[3];
+   int lastPos = 0;
+   int line,endLine;
+   unsigned initLine,numberOfLines;
+   int beginML,endML;
+   int i;
+   int sizePrevML;
+
+   hlLnListGetLineRange(&text->hlist,linePos,&initLine,&numberOfLines);  
+   line = (( initLine < (unsigned int) text->numrows )?initLine:0);
+   endLine = ((line+numberOfLines <(unsigned int)text->numrows)?line+numberOfLines:(unsigned int)text->numrows - 1); 
+
+   while ( line <= endLine) {
+       
+       //reset lafter from init line
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,0); 
+       if (multiLine == 0) {
+         
+         sizePrevML=hlLnListGetAfter(&text->hlist,line);
+         if (sizePrevML != 0) {
+            hlLnListResetAfter(&text->hlist,line);
+            hlLnListResetBefore(&text->hlist,line+sizePrevML);
+         }
+         
+       }
+       while (multiLine){
+           beginML = line;
+       //fill until terminating string and do hl in the rest of line
+         switch (multiLine){
+         case 1:
+           strcpy(str,"*/");
+           hl = text->ft.comment;
+         break;
+         case 2:
+           strcpy(str,"\"");
+           hl = text->ft.str;
+         break;
+         case 3:
+           strcpy(str,"\'");
+           hl = text->ft.str;
+         break;
+       	}	
+         if (line > text->numrows - 2) return;
+         line++; 
+         hlUpdateUntilFindString(text,&hl,&line,str,&lastPos);// update lineNumber and lastPos 
+           endML = line;
+           for (i=beginML+1;i<endML;i++)
+             hlLnListDeleteLine(&text->hlist,i);
+
+           hlLnListInsert(&text->hlist,beginML,0,endML-beginML);
+           hlLnListInsert(&text->hlist,endML,endML-beginML,0);
+         
+         if (line > text->numrows - 1) return;
+         multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
+         if (multiLine == 0) {
+           
+           sizePrevML=hlLnListGetAfter(&text->hlist,line);
+           if (sizePrevML != 0) {
+           hlLnListResetAfter(&text->hlist,line);
+           hlLnListResetBefore(&text->hlist,line+sizePrevML);
+           }
+         }
+       }  
+       line++;
+       
+    }
+}
+
+/*
 static int hlCountChanged(char *oldline,char *newline,char *s)
 {
  unsigned int newPos = 0; 
@@ -644,94 +829,7 @@ static int hlIsUpdateFromInitRowNeeded(char *oldline,char *newline)
   return 0;    
 }
 
-
-
-void editorUpdateHL(editorConfig *text,char *oldline,char *newline,int lineNumber)
-{
-
-  int b;
-  
-    if ( oldline == NULL && newline == NULL ){
-    //full scan needed at least to lineNumber - initial file hl
-     hlUpdateFromInitRowUntil(text,text->numrows);
-    
-    } else if ( oldline == NULL && newline != NULL  ){
-    // scan from current line - no lines to compare	
-       hlUpdateFromCurrentRow(text,lineNumber);      
-    } else if ( oldline != NULL && newline != NULL ){
-      // compare old and newlines for scan until current line
-      //if (hlIsUpdateFromInitRowNeeded(oldline,newline) ) 
-      //  hlUpdateFromInitRowUntil(text,lineNumber);
-      //hlUpdateFromInitRowUntil(text,text->numrows);
-      //  else     
-      //scan from current line
-      hlUpdateFromCurrentRow(text,lineNumber);
-      }
-     
-}
-
-
-static void hlUpdateUntilFindString(editorConfig *text,hlType *hl,int* lineNumber,char *s,int* lastPos)
-{
-    char *pos;
-    
-    while ( (*lineNumber < text->numrows) && ( ( pos = strstr(text->row[*lineNumber].render,s) ) == NULL ) ) {
-      
-      hlUpdateApply(&text->row[*lineNumber],hl,0,text->row[*lineNumber].rsize);
-
-      *lineNumber += 1;	
-    }
-    
-    if (*lineNumber < text->numrows )
-    {
-      *lastPos = (pos - text->row[*lineNumber].render);
-      *lastPos += 2;  // add size of "end comment" 
-      hlUpdateApply(&text->row[*lineNumber],hl,0,*lastPos);
-      
-    } 
-    
-    
-}
-
-static void hlUpdateFromCurrentRow(editorConfig *text,int line)
-{
-   int multiLine;
-   hlType hl;
-   char str[3];
-   int lastPos = 0;
-
-   text->row[line].hl = realloc( text->row[line].hl,text->row[line].rsize * sizeof(__int32_t));
-   if ( (text->row[line].hl) == NULL ) die("realloc - editorUpdateHL");
-   memset(text->row[line].hl,0,text->row[line].rsize * sizeof(__int32_t));
-       
-   
-       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,0); 
-       if (multiLine) {
-       //fill until terminating string and do hl in the rest of line
-         switch (multiLine){
-         case 1:
-           strcpy(str,"*/");
-           hl = text->ft.comment;
-         break;
-           strcpy(str,"\"");
-           hl = text->ft.str;
-         case 2:
-         break;
-         case 3:
-           strcpy(str,"\''");
-           hl = text->ft.str;
-         break;
-       	}	
-       if (line > text->numrows - 2) return;
-       line++; 
-       hlUpdateUntilFindString(text,&hl,&line,str,&lastPos);// update lineNumber and lastPos 
-
-       if (line > text->numrows - 1) return;
-       hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
-       }  
-}
-
-static void hlUpdateFromInitRowUntil(editorConfig *text,int lineNumber)
+void hlUpdateAll(editorConfig *text)
 {
    int multiLine;
    hlType hl;
@@ -739,26 +837,22 @@ static void hlUpdateFromInitRowUntil(editorConfig *text,int lineNumber)
    int lastPos = 0;
    int line = 0;
 
-   while ( line < lineNumber) {
+   while ( line < text->numrows ) {
 
-       text->row[line].hl = realloc( text->row[line].hl,text->row[line].rsize * sizeof(__int32_t));
-       if ( (text->row[line].hl) == NULL ) die("realloc - editorUpdateHL");
-       memset(text->row[line].hl,0,text->row[line].rsize * sizeof(__int32_t));
-   	     
        multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,0); 
-       if (multiLine) {
+       while (multiLine){
        //fill until terminating string and do hl in the rest of line
          switch (multiLine){
          case 1:
-           strcpy(str,"*/");
+           strcpy(str,"*");
            hl = text->ft.comment;
          break;
+         case 2:
            strcpy(str,"\"");
            hl = text->ft.str;
-         case 2:
          break;
          case 3:
-           strcpy(str,"\''");
+           strcpy(str,"\'");
            hl = text->ft.str;
          break;
        	}	
@@ -767,10 +861,11 @@ static void hlUpdateFromInitRowUntil(editorConfig *text,int lineNumber)
        hlUpdateUntilFindString(text,&hl,&line,str,&lastPos);// update lineNumber and lastPos 
 
        if (line > text->numrows - 1) return;
-       hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
+       multiLine = hlUpdateCommentRec(&text->row[line],&text->ft,lastPos);
        }  
        line++;
        
     }
 }
 
+*/

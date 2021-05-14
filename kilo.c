@@ -36,7 +36,7 @@
  
 
 /*************** libraries  ***************/
-
+/*
 #include <stdio.h>
 #include <unistd.h>
 #include <termios.h>
@@ -49,7 +49,7 @@
 #include <stdarg.h>
 #include <signal.h>
 #include <fcntl.h>
-
+*/
 
 #ifndef _H_COMMON_
 #include "common.h"
@@ -59,6 +59,9 @@
 #include "highlight.h"
 #endif
 
+#ifndef _HLLINES_H_
+#include "hllines.h"
+#endif
 
 editorConfig E;
 
@@ -113,6 +116,8 @@ void editorLoadHLTemplate();
 
 void editorAppendRow(char *s, size_t len,int pos);
 void editorUpdateRowRender(erow *row);
+//void editorUpdateRowHL(erow *row);
+void editorAllocRowHL(erow *row);
 int  editorRowCxToRx(erow *row,int cx);
 
 // row operations
@@ -568,7 +573,9 @@ void initEditor()
   E.ft.upper.tokens = NULL;
   E.ft.keyword.tokens = NULL;
   E.ft.comment.tokens = NULL;
-
+  hlLnListInit(&E.hlist);
+  
+ 
   editorLoadHLTemplate();
 }
 
@@ -763,8 +770,8 @@ void editorDrawStatusBar(struct abuf *ab)
       
     abAppend(ab,ESEQ_INVERT_COLOR,strlen(ESEQ_INVERT_COLOR));  
     
-    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s bfs: %d",(shortFileName?shortFileName:"[No name]"),
-    E.cy + 1,E.cx +1,(E.fileTypeName?E.fileTypeName:""),ab->len);
+    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s llen:%d",(shortFileName?shortFileName:"[No name]"),
+    E.cy + 1,E.cx +1,(E.fileTypeName?E.fileTypeName:""),E.hlist.len);
     
     if ( len > E.screencols ) len = E.screencols;
 
@@ -1007,8 +1014,8 @@ void editorOpen(char *filename)
       editorAppendRow(line,linelen,E.numrows);    
     }
 
-    editorUpdateHL(&E,NULL,NULL,0);
-    
+    hlUpdateAll(&E);
+       
     
     E.dirty = 0;
     free(line);
@@ -1090,12 +1097,14 @@ void editorAppendRow(char *s, size_t len,int pos)
     E.row[pos].rsize = 0;
     E.row[pos].render = NULL; 
     E.row[pos].renderInUse='N';
-    E.row[pos].hl = NULL;
+    E.row[pos].hl = 0;
            
     editorUpdateRowRender(&E.row[pos]);
-
-    //editorUpdateHL(&E,&E.ft);
     
+    editorAllocRowHL(&E.row[pos]);
+    
+    //hlUpdateRow(&E,E.cy); // still to handle changes in hllist
+        
 	E.numrows++;
 }
 
@@ -1192,15 +1201,22 @@ int editorRowCxToRx(erow *row,int cx)
     return rx;
 }
 
-
+void editorAllocRowHL(erow *row)
+//void editorUpdateRowHL(erow *row)
+{
+   //if (row->hl != NULL) free(row->hl);
+   free(row->hl);
+   row->hl = malloc(row->rsize * sizeof(__int32_t));
+   
+   if ( (row->hl) == NULL ) die("realloc - editorAllocRowHL");
+   memset(row->hl,0,row->rsize * sizeof(__int32_t));
+}
 
 /**********************  row operations   ********************/
 
 void editorRowInsertChar(erow *row,int at,int c)
 {
-    char *oldline = malloc(row->rsize + 1);
-    strcpy(oldline,row->render);
-
+    
     if ( at < 0 || at > row->size ) at = row->size;
     if ( ( row->chars = realloc(row->chars, row->size + 2) ) == NULL ) die("realloc");
     memmove(&row->chars[at + 1],&row->chars[at],row->size + 1 - at );
@@ -1208,18 +1224,16 @@ void editorRowInsertChar(erow *row,int at,int c)
     row->chars[at] = c;
     editorUpdateRowRender(row);
 
-    editorUpdateHL(&E,oldline,row->render,E.cy);
-    free(oldline);
+    editorAllocRowHL(row);
+    hlUpdateRow(&E,E.cy);
+        
 }
 
 void editorRowDelChar(erow *row,int at)
 {
     if ( at < 0 || at > row->size  ) return;
 
-    char *oldline = malloc(row->rsize + 1);
-    strcpy(oldline,row->render);
-
-
+    
     if ( row->size > 0) {
 
       if ( at < row->size) {
@@ -1229,10 +1243,9 @@ void editorRowDelChar(erow *row,int at)
         row->size--;
         editorUpdateRowRender(row);
 
-        editorUpdateHL(&E,oldline,row->render,E.cy);
-
-        free(oldline);
-        
+        editorAllocRowHL(row); 
+        hlUpdateRow(&E,E.cy);
+                      
         E.dirty++; 
             	
       } else if ( at == row->size ) {
@@ -1243,10 +1256,11 @@ void editorRowDelChar(erow *row,int at)
 
             editorUpdateRowRender(row);
 
-            editorUpdateHL(&E,oldline,row->render,E.cy);
-
-            free(oldline);
+            editorAllocRowHL(row);
             
+            hlUpdateRow(&E,E.cy);
+            
+                   
             editorRowDel(E.cy+1);
             E.dirty++;      	
           } 
@@ -1327,17 +1341,13 @@ void editorInsertChar(int c)
 
 void editorRowInsert()
 {
-    char *oldline = malloc(E.row[E.cy].rsize + 1);
-    strcpy(oldline,E.row[E.cy].render);
-        
     editorAppendRow(&E.row[E.cy].chars[E.cx],strlen(&E.row[E.cy].chars[E.cx]),E.cy + 1);
     if ( E.cx < E.row[E.cy].size  ) editorRowCut(&E.row[E.cy],E.cx);
     editorUpdateRowRender(&E.row[E.cy]);
 
-    editorUpdateHL(&E,oldline,E.row[E.cy].render,E.cy);
-    editorUpdateHL(&E,NULL,E.row[E.cy+1].render,E.cy + 1);
-
-    free(oldline);
+    editorAllocRowHL(&E.row[E.cy]);
+    hlUpdateRow(&E,E.cy); // still to handle changes in hlnlist
+       
     E.dirty++;
 }
 
@@ -1438,6 +1448,7 @@ void freeBuffers()
     free(E.ft.keyword.tokens);
     free(E.ft.preprocessor.tokens);
     free(E.ft.operator.tokens);
+    hlLnListClose(&E.hlist);
 }
 
 /********************   Signal Handling  ****************/
