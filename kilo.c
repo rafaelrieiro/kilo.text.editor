@@ -75,7 +75,8 @@ enum editorKey {
 
 
 /*************** function prototypes *************/
-
+//log
+void editorPrintLog();
 //// terminal
 void enableRawMode();
 //void disableRawMode();
@@ -437,6 +438,9 @@ void editorProcessKey()
     case CTRL_KEY('f'):
       editorFind();
     break;
+    case CTRL_KEY('p'):
+      editorPrintLog();
+    break;
 	
 	case ARROW_LEFT:
 	case ARROW_UP:
@@ -611,16 +615,6 @@ void abAppend(struct abuf *ab,const char* s,int len)
     ab->b      = new;
  	ab->len   += len; 
 
-        /*
-	char *new=realloc(ab->b, ab->len + len);
-	
-	if ( new == NULL ) die("realloc");
-	
-	memcpy(&new[ab->len],s,len);
-
-    ab->b      = new;
-	ab->len   += len; 
-    */ 	
 }
 
 /******************* output ********************/
@@ -630,7 +624,11 @@ void editorDrawRows(struct abuf* ab)
 {
     char str[MAX_BF_ESEQ_SIZE];   
     int y;
+    int numDigitsNumRow = 0; 
+    //int aux = E.numrows;
 
+    //while ( (aux /= 10) > 0 ) numDigitsNumRow++;
+    
     for ( y=0;y<E.screenrows;y++) {
 
        int filerow = E.rowoff + y;
@@ -657,17 +655,29 @@ void editorDrawRows(struct abuf* ab)
 
         } else {
 
+            
             int len = E.row[filerow].rsize - E.coloff;
             int j;
             char c;
-                                    
+                                                
             if ( len < 0 ) len = 0;
             if ( len > E.screencols ) len = E.screencols;
+            //if ( len > E.screencols - 3 ) len = E.screencols - 3;
+            //adding lines  
+            //snprintf(str,4,"%d ",filerow + 1);
+            //abAppend(ab,&str[0],3);
 
+            //snprintf(str,numDigitsNumRow + 2,"%d ",filerow + 1);
+            //abAppend(ab,&str[0],numDigitsNumRow+1);
+            
             
             for ( j = 0 ; j < len ; j++) {
+
+              
             
-            if ( editorRowGetHL(&E.row[filerow],E.coloff + j,&str[0])  == 1 ) {
+            if ( editorRowGetHL(&E.row[filerow],E.coloff + j,&str[0],j)  == 1 ) {
+
+              
                  
               abAppend(ab,&str[0],strlen(str));
               c = E.row[filerow].render[E.coloff + j];
@@ -1081,6 +1091,42 @@ void editorSave()
     free(buf);
 }
 
+void editorPrintLog()
+{
+    int len;
+    int fd;
+    char buf[500];
+    len = 12;
+
+    unsigned int i;
+        
+    snprintf(buf,12,"Line list:\n");
+    
+   /*     for (i=0;i<E.hlist.len;i++){
+         
+           snprintf(buf,60,"Line Number: %d, lBef: %d, lAft: %d\n",
+           E.hlist.list[i].line,E.hlist.list[i].lbefore,E.hlist.list[i].lafter);
+        }
+    */    
+
+    if ( ( fd = open("/tmp/kilo.log", O_RDWR | O_CREAT, 0644) ) != -1) {
+
+
+       for (i=0;i<E.hlist.len;i++){
+       snprintf(buf,40,"Line Number: %d, lBef: %d, lAft: %d\n",
+       E.hlist.list[i].line,E.hlist.list[i].lbefore,E.hlist.list[i].lafter);
+       len = 40;
+       write(fd,buf,len);
+       }
+
+       close(fd);
+       //free(buf);
+       return;
+        }
+    
+     
+}
+
 /*******************   row operations   ***************/
 void editorAppendRow(char *s, size_t len,int pos)
 {
@@ -1360,18 +1406,13 @@ void editorFind()
 
 void editorFindCallBack(const char *input,const int key)
 {
-
+    
     int c;
     int j = E.cy;
     char *pos = NULL;
     int count = 0;
     size_t forward = 1;
- 
-    int oldCx = E.cx;
-    int oldCy = E.cy;
-    int oldRowOff = E.rowoff;
-    int oldColOff = E.coloff;
-    
+         
     do {
 
       pos = strstr(E.row[j].chars,input);
@@ -1380,8 +1421,10 @@ void editorFindCallBack(const char *input,const int key)
 
         E.cy = j;
         E.cx = pos - E.row[j].chars;
+        
         E.rowoff = E.cy;
-        E.coloff = E.cx;
+        //E.coloff = E.cx;
+        E.coloff = (E.cx > E.screencols?E.cx:0);
         editorScroll();
         editorSetStatusMessage("Arrows to Search Again: %s, Esc to quit",input);
         editorRefreshScreen(); 
@@ -1394,10 +1437,6 @@ void editorFindCallBack(const char *input,const int key)
 
         case CTRL_KEY('q'):
         case ESCAPE:
-          E.cx = oldCx;
-          E.cy = oldCy;
-          E.rowoff = oldRowOff;
-          E.coloff = oldColOff;
           return;
         break;
         case PAGE_UP:

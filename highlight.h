@@ -52,7 +52,7 @@
 
 #define MAX_BF_ESEQ_SIZE                40 
 
-int  editorRowGetHL(erow *row,int pos,char *str);
+int  editorRowGetHL(erow *row,int pos,char *str,int screenpos);
 void editorUpdateHL(editorConfig *text,char *oldline,char *newline, int lineNumber);
 void hlUpdateAll(editorConfig *text);
 void hlUpdateRow(editorConfig *text,int linePos);
