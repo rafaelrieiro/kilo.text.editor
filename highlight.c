@@ -101,7 +101,15 @@ int editorRowGetHL(erow *row,int pos,char *str,int screenpos)
 
         ESEQ_SET_RESET(str);
         strcat(str,temp); 
-      	return 1;
+        
+        if ( strcmp(oldStr,str) != 0 ) {
+          strcpy(oldStr,str);
+          return 1;
+        }  
+        else return 0;
+
+
+      	//return 1;
       }
     
     } 
@@ -367,11 +375,9 @@ static void hlUpdateOp(erow *row,hlType *hl, char *s ,int initPos)
     int hlSize;
     int offset;
     int initOpPos;
-    char *current;
+    char *current,*last;
 
-    char *sCopy;
-        
-    sCopy = s;
+    last = current = s;
     
     offset = 0;
 
@@ -379,23 +385,22 @@ static void hlUpdateOp(erow *row,hlType *hl, char *s ,int initPos)
     
     while  ( strcmp(hl->tokens[count],"\0") != 0 ){
 
-      while ( ( current = strstr(s,hl->tokens[count]) ) != NULL ){
+      while ( ( current = strstr(last,hl->tokens[count]) ) != NULL ){
 
-        initOpPos = (current - s) + offset;
+        initOpPos = (current - last) + offset;
         hlSize = strlen(hl->tokens[count]);
                
         hlUpdateApply(row,hl,initOpPos+initPos,hlSize);
       
         offset = initOpPos + 1;
-        s = current;
-        s++;
+        last = current + 1;
+        
       }   
 
-      s = sCopy;
+      last = s;
       offset = 0;
       count++; 
    }
-
   
 }
 
@@ -406,10 +411,9 @@ static void hlUpdateToken(erow *row, hlType* hl, char *s, int initPos)
     int hlSize;
     int offset;
     int pos;
-    char *current;
-    char *sCopy;
+    char *current,*last;
     
-    sCopy = s;
+    last = current = s;
     
     offset = 0;
 
@@ -417,26 +421,26 @@ static void hlUpdateToken(erow *row, hlType* hl, char *s, int initPos)
     
     while  ( strcmp(hl->tokens[count],"\0") != 0 ){
 
-      while ( ( current = strstr(s,hl->tokens[count]) ) != NULL ){
+      while ( ( current = strstr(last,hl->tokens[count]) ) != NULL ){
 
-        pos = ( current - s ) + offset;
+        pos = ( current - last ) + offset;
         hlSize = strlen(hl->tokens[count]);
         char leftchr,rightchr;
 
-        unsigned int ptrDiff = current - s;
+        unsigned int ptrDiff = current - last;
         
-        leftchr  = (ptrDiff>0?s[(current -s) -1]:'*');
-        rightchr = ((( ptrDiff + hlSize ) < strlen(s))?s[ptrDiff + hlSize]:'*');
+        leftchr  = (ptrDiff>0?last[(current - last) - 1]:'*');
+        rightchr = ((( ptrDiff + hlSize ) < strlen(last))?last[ptrDiff + hlSize]:'*');
 
         if (  ( isalnum(leftchr) == 0 ) && ( isalnum(rightchr) == 0 ) )  
           hlUpdateApply(row,hl,pos+initPos,hlSize);
    
         offset = pos + 1;
-        s = current;
-        s++;
+        last = current + 1;
+        
       }   
      
-     s = sCopy;
+     last = s;
      offset = 0;
      count++; 
    }

@@ -98,6 +98,7 @@ typedef struct {
     char   statusmsg[80];
     time_t statusmsg_time; 
     int    dirty;
+    int    leftTabSize;
     fileType ft;
     struct termios orig_termios;
     hlLnList hlist;
