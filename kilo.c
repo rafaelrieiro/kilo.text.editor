@@ -93,6 +93,7 @@ char * editorPrompt(char *prompt,void(*callback)(const char* input,const int key
 //void die(const char *s);
 
 /// output
+
 void editorMoveCursor(int key);
 void initEditor();
 void editorDrawRows(struct abuf *ab);
@@ -101,6 +102,7 @@ void editorScroll();
 void editorDrawStatusBar(struct abuf *ab);
 void editorDrawMessageBar(struct abuf *ab);
 void editorSetStatusMessage(const char *fmt, ...);
+void editorToggleLeftBar();
 
 /// data handling
 void abFree(struct abuf *ab);
@@ -441,6 +443,10 @@ void editorProcessKey()
     case CTRL_KEY('p'):
       editorPrintLog();
     break;
+    case CTRL_KEY('r'):
+    case CTRL_KEY('c'):
+      editorToggleLeftBar();
+    break;
 	
 	case ARROW_LEFT:
 	case ARROW_UP:
@@ -567,8 +573,9 @@ void initEditor()
   E.statusmsg[0]='\0';
   E.statusmsg_time = 0;
   if ( getWindowSize(&E.screenrows,&E.screencols) == -1 ) die("getWindowSize");
-  E.screenrows -= 2; // one line for status bar and other for status messages - this is the cause of resize offset!!
 
+  E.screenrows -= 2; // one line for status bar and other for status messages - this is the cause of resize offset!!
+  
   E.ft.operator.tokens = NULL;
   E.ft.str.tokens = NULL;
   E.ft.var.tokens = NULL;
@@ -578,7 +585,8 @@ void initEditor()
   E.ft.keyword.tokens = NULL;
   E.ft.comment.tokens = NULL;
   hlLnListInit(&E.hlist);
-  
+
+  E.leftTabSize = 0;
  
   editorLoadHLTemplate();
 }
@@ -618,17 +626,35 @@ void abAppend(struct abuf *ab,const char* s,int len)
 }
 
 /******************* output ********************/
+void editorToggleLeftBar()
+{
+  int numDigits = 1;
+  int temp;
+  
+  temp = E.numrows;
+
+  while ( (temp /= 10) > 0 ) numDigits++;
+
+  if ( E.leftTabSize == 0 ) {
+    E.leftTabSize = numDigits + 1;
+    //E.leftTabSize = numDigits + 1;
+    E.screencols -= E.leftTabSize;
+  }
+  else {
+  E.screencols += E.leftTabSize;
+  E.leftTabSize = 0;
+  
+  }
+
+}
 
 
 void editorDrawRows(struct abuf* ab)
 {
-    char str[MAX_BF_ESEQ_SIZE];   
+    char str[MAX_BF_ESEQ_SIZE];
+    char leftTab[15];   
     int y;
-    int numDigitsNumRow = 0; 
-    //int aux = E.numrows;
-
-    //while ( (aux /= 10) > 0 ) numDigitsNumRow++;
-    
+        
     for ( y=0;y<E.screenrows;y++) {
 
        int filerow = E.rowoff + y;
@@ -662,22 +688,26 @@ void editorDrawRows(struct abuf* ab)
                                                 
             if ( len < 0 ) len = 0;
             if ( len > E.screencols ) len = E.screencols;
-            //if ( len > E.screencols - 3 ) len = E.screencols - 3;
-            //adding lines  
-            //snprintf(str,4,"%d ",filerow + 1);
-            //abAppend(ab,&str[0],3);
+            
+            strcpy(leftTab,"\0");
+            
+            snprintf(leftTab,E.leftTabSize+2,"%*d ",E.leftTabSize-1,filerow+1);    
+            if  ( E.leftTabSize != 0 ) {
+              if (filerow == E.cy) {
+                ESEQ_SET_FONT_BOLD(str);
+                abAppend(ab,&str[0],strlen(str));
+                ESEQ_SET_FG_COLOR(str,11);
+                abAppend(ab,&str[0],strlen(str));
+              }
+                
+              abAppend(ab,&leftTab[0],E.leftTabSize);
+              abAppend(ab,ESEQ_RESET_MODE,strlen(ESEQ_RESET_MODE));
+            }
 
-            //snprintf(str,numDigitsNumRow + 2,"%d ",filerow + 1);
-            //abAppend(ab,&str[0],numDigitsNumRow+1);
-            
-            
             for ( j = 0 ; j < len ; j++) {
-
-              
+                   
             
-            if ( editorRowGetHL(&E.row[filerow],E.coloff + j,&str[0],j)  == 1 ) {
-
-              
+              if ( editorRowGetHL(&E.row[filerow],E.coloff + j,&str[0],j)  == 1 ) {
                  
               abAppend(ab,&str[0],strlen(str));
               c = E.row[filerow].render[E.coloff + j];
@@ -731,7 +761,9 @@ void editorRefreshScreen()
     
     
             
-    snprintf(buf,sizeof(buf),"\x1b[%d;%dH",(E.cy - E.rowoff) + 1,( E.rx - E.coloff ) + 1 ); // put cursor at pos cx,cy
+    //snprintf(buf,sizeof(buf),"\x1b[%d;%dH",(E.cy - E.rowoff) + 1,( E.rx - E.coloff ) + 1 ); // put cursor at pos cx,cy
+
+    snprintf(buf,sizeof(buf),"\x1b[%d;%dH",(E.cy - E.rowoff) + 1,( E.rx - E.coloff ) + 1 + E.leftTabSize); // put cursor at pos cx,cy
     
     abAppend(&ab,buf,strlen(buf));
     
@@ -780,18 +812,21 @@ void editorDrawStatusBar(struct abuf *ab)
       
     abAppend(ab,ESEQ_INVERT_COLOR,strlen(ESEQ_INVERT_COLOR));  
     
-    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s llen:%d",(shortFileName?shortFileName:"[No name]"),
-    E.cy + 1,E.cx +1,(E.fileTypeName?E.fileTypeName:""),E.hlist.len);
+    len = snprintf(status,sizeof(status),"%.30s (%d,%d) ft:%s leftab:%d",(shortFileName?shortFileName:"[No name]"),
+    E.cy + 1,E.cx +1,(E.fileTypeName?E.fileTypeName:""),E.leftTabSize);
     
-    if ( len > E.screencols ) len = E.screencols;
+    //if ( len > E.screencols ) len = E.screencols;
+
+    if ( len > E.screencols + E.leftTabSize) len = E.screencols + E.leftTabSize;
 
     abAppend(ab,status,len); 
 
     rlen = snprintf(rstatus,sizeof(rstatus),"%d/%d",E.cy+1,E.numrows);
 
-    while ( len < E.screencols ){
-
-      if ( len == ( E.screencols - rlen ) ){
+    //while ( len < E.screencols ){
+    while ( len < E.screencols + E.leftTabSize ){
+      if ( len == ( E.screencols + E.leftTabSize - rlen ) ){
+      //if ( len == ( E.screencols - rlen ) ){
 
         abAppend(ab,rstatus,rlen);
       	break;
@@ -1409,27 +1444,27 @@ void editorFindCallBack(const char *input,const int key)
     
     int c;
     int j = E.cy;
-    char *pos = NULL;
     int count = 0;
     size_t forward = 1;
+    char *current,*last;
+    int offset;
          
     do {
-
-      pos = strstr(E.row[j].chars,input);
-
-      if ( pos != NULL) {
+    
+      offset = 0;
+      last = E.row[j].chars;
+      
+      while ( ( current = strstr(last,input)) != NULL)  {
 
         E.cy = j;
-        E.cx = pos - E.row[j].chars;
+        E.cx = (current - last) + offset;
         
-        E.rowoff = E.cy;
-        //E.coloff = E.cx;
+        E.rowoff = (E.cy - (E.screenrows / 2)>0?E.cy - (E.screenrows/2):0);
         E.coloff = (E.cx > E.screencols?E.cx:0);
+
         editorScroll();
         editorSetStatusMessage("Arrows to Search Again: %s, Esc to quit",input);
         editorRefreshScreen(); 
-        pos = NULL;
-        count = 0;
         
         c = editorReadKey();
 
@@ -1449,16 +1484,20 @@ void editorFindCallBack(const char *input,const int key)
         break;
                	
         }
-                      	
+        offset  = ( current - last ) + offset + 1;
+        last    = last + ( current - last ) + 1;              	
+        
       }  
           
       j += ( forward ? 1 : -1 );
       count++;
-
+     
       if ( count > E.numrows ) {
-       editorSetStatusMessage("String Not Found");
-       return;
-     } 
+        editorSetStatusMessage("String Not Found: %s",input);
+        editorRefreshScreen();
+        editorReadKey();
+        return;
+      } 
     
      if ( ( j == E.numrows ) && forward )   j = 0;
      if ( ( j == -1 && forward == 0 ))      j = E.numrows - 1;                                 
@@ -1497,6 +1536,7 @@ void sigHandlerSIGWINCH()
     E.cx = E.cy = E.rowoff = E.coloff = 0;
     if ( getWindowSize(&E.screenrows,&E.screencols) == -1 ) die("getWindowSize");   
     E.screenrows -= 2; // opening space for status bar and message bar
+    E.screencols -= E.leftTabSize;
 }
 
 void sigHandlerSIGTERM()

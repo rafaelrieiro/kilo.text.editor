@@ -127,12 +127,21 @@ void enableRawMode()
 	
 	if ( tcsetattr(STDIN_FILENO,TCSAFLUSH,&raw) == -1 ) die("tcsetattr");
 }
+void enableMouseTracking()
+{
 
+//	 write (STDOUT_FILENO, "\x1b[?9h", 5);
+	 write (STDOUT_FILENO, "\x1b[?1003h", 8); // receive all events even with no button presset
+ //    write (STDOUT_FILENO, "\x1b[?1001h", 8); // normal tracking mode - send event on press and release
+ //	 write (STDOUT_FILENO, "\x1b[?1000h", 8); // normal tracking mode - send event on press and release
+
+}
 void disableRawMode()
 {
 	if ( tcsetattr(STDIN_FILENO,TCSAFLUSH,&E.orig_termios) == -1 ) die("tcsetattr");
-    write (STDOUT_FILENO, "\e[?9l", 5);
-	write (STDOUT_FILENO, "\e[?1000l", 8); // disable normal tracking mode - send event on press and release
+//    write (STDOUT_FILENO, "\x1b[?9l", 5);
+    write (STDOUT_FILENO, "\x1b[?1003l", 8); // RESET - receive all events even with no button presset
+	//write (STDOUT_FILENO, "\x1b[?1000l", 8); // disable normal tracking mode - send event on press and release
 
 }
 
@@ -141,7 +150,7 @@ int editorReadKey()
 	char c = '\0';
 	int nread;
 	
-	while  ( ( nread = read(STDIN_FILENO,&c,1) ) == 1 && c != 'q') 
+	while  ( ( nread = read(STDIN_FILENO,&c,1) ) == 1 && c != CTRL_KEY('q')) 
     {
 	  //if ( iscntrl(c)) { 
       if (!( c >= 32 && c <= 126 ) ) {
@@ -156,12 +165,7 @@ int editorReadKey()
     return c;	
 }
 
-void enableMouseTracking()
-{
 
-	 write (STDOUT_FILENO, "\e[?9h", 5);
-	 write (STDOUT_FILENO, "\e[?1000h", 8); // normal tracking mode - send event on press and release
-}
 
 int main(int argc, char **argv)
 {
